@@ -77,7 +77,7 @@ int fsock_accept(int listenfd, struct sockaddr_in cli_addr, socklen_t cli_len)
 
     if ((sockfd = accept(listenfd, (struct sockaddr *)&cli_addr, &cli_len)) < 0)
     {
-        if (errno != ECONNABORTED || errno != EINTR || errno != EAGAIN)
+        if (errno != ECONNABORTED || errno != EINTR || errno != EAGAIN || errno != EWOULDBLOCK)
             print_log(LOG_TYPE_ERR, "accept error. errno = %d", errno);
     }
 
