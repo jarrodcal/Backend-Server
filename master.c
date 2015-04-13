@@ -31,7 +31,7 @@ void master_close(master_t pmaster)
 
     if (pmaster->epfd)
         close(pmaster->epfd);
-    
+
     free(pmaster);
     pmaster = NULL;
 }
@@ -83,7 +83,7 @@ void master_add_fd(master_t pmaster, int fd)
 
 void fs_accept(master_t pmaster)
 {
-    struct sockaddr_in cli_addr;
+    struct sockaddr_in *cli_addr = (struct sockaddr_in *)malloc(sizeof(struct sockaddr_in));
     socklen_t cli_len = sizeof(cli_addr);
     int sockfd = -1;
 
@@ -91,6 +91,7 @@ void fs_accept(master_t pmaster)
 
     while (1)
     {
+	memset(cli_addr, 0, cli_len);
         sockfd = fsock_accept(pmaster->listenfd, cli_addr, cli_len);
 
         if (sockfd > 0)
@@ -98,10 +99,16 @@ void fs_accept(master_t pmaster)
             setnonblock(sockfd);
             master_add_fd(pmaster, sockfd);
 
-            char *remote_ip = inet_ntoa(cli_addr.sin_addr);
-            unsigned short remote_port = cli_addr.sin_port;
+            char *remote_ip = inet_ntoa(cli_addr->sin_addr);
+            unsigned short remote_port = cli_addr->sin_port;
 
             print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
         }
+    }
+
+    if (cli_addr != NULL)
+    {
+        free(cli_addr);
+        cli_addr = NULL;
     }
 }

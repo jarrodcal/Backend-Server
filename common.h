@@ -26,6 +26,6 @@ void setnonblock(int sock);
 void setreuse(int sock);
 void set_tcp_nodelay(int sock);
 int listen_init(int* listenfd, const char* ip, unsigned short port);
-int fsock_accept(int listenfd, struct sockaddr_in cli_addr, socklen_t cli_len);
+int fsock_accept(int listenfd, struct sockaddr_in *cli_addr, socklen_t cli_len);
 
 #endif
