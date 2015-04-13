@@ -67,7 +67,7 @@ void master_loop(master_t pmaster)
                 continue;
             }
 
-            //客户端读写逻辑fd
+            //客户端读写逻辑fdxxx
         }
     }
 }
