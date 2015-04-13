@@ -2,6 +2,7 @@
 #define __MASTER_H__
 
 #include "common.h"
+#include "log.h"
 
 struct master
 {

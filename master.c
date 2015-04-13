@@ -10,7 +10,7 @@ master_t master_create()
         return NULL;
     }
 
-    pmaster->tid = pthread_slef();
+    pmaster->tid = pthread_self();
     pmaster->epfd = -1;;
     pmaster->listenfd = -1;
     pmaster->accept_count = 0;

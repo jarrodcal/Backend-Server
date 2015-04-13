@@ -1,6 +1,6 @@
 #include "log.h"
 #include "master.h"
-#include "slave.h"
+//#include "slave.h"
 
 int main()
 {
