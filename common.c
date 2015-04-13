@@ -71,6 +71,7 @@ int listen_init(int* listenfd, const char* ip, unsigned short port)
     return 0;
 }
 
+//两种结构体的大小是一致的, INPROGRESS 原因是设置套接字为阻塞模式
 int fsock_accept(int listenfd, struct sockaddr_in *cli_addr, socklen_t cli_len)
 {
     int sockfd = -1;
