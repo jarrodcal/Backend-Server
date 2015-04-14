@@ -107,7 +107,7 @@ int init_log_system(const char *prefix)
 
     if (pthread_create(&tid, &attr, log_daemon, NULL) != 0)
     {
-	printf("create pthread error\n");
+        printf("create pthread error\n");
         return -1;
     }
 

@@ -67,18 +67,33 @@ void master_loop(master_t pmaster)
                 continue;
             }
 
-            //客户端读写逻辑fdxxx
+            if (evs[i].events & EPOLLIN)
+            {
+                channel_handle_read(sockfd);
+            }
+
+            if (evs[i].events & EPOLLOUT)
+            {
+                channel_handle_write(sockfd);
+            }
+
+            if ((evs[i].events & EPOLLERR) || (evs[i].events & EPOLLHUP))
+            {
+                print_log(LOG_TYPE_DEBUG, "some one drop");
+                master_add_fd(pmaster, sockfd, EPOLL_CTL_DEL);
+                close(sockfd);
+            }
         }
     }
 }
 
-void master_add_fd(master_t pmaster, int fd)
+void master_add_fd(master_t pmaster, int fd, int op)
 {
     struct epoll_event ev;
     ev.data.fd = fd;
     ev.events = EPOLLIN | EPOLLET;
-
-    epoll_ctl(pmaster->epfd, EPOLL_CTL_ADD, fd, &ev);
+    
+    epoll_ctl(pmaster->epfd, op, fd, &ev);
 }
 
 void fs_accept(master_t pmaster)
@@ -97,7 +112,7 @@ void fs_accept(master_t pmaster)
         if (sockfd > 0)
         {
             setnonblock(sockfd);
-            master_add_fd(pmaster, sockfd);
+            master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
 
             char *remote_ip = inet_ntoa(cli_addr->sin_addr);
             unsigned short remote_port = cli_addr->sin_port;
@@ -110,5 +125,62 @@ void fs_accept(master_t pmaster)
     {
         free(cli_addr);
         cli_addr = NULL;
+    }
+}
+
+static void channel_handle_read(int sockfd)
+{
+    char buf[CONN_READ_BUF_SIZE] = {0};
+    char extra[CONN_READ_BUF_SIZE] = {0};
+    struct iovec vec[2];
+
+    vec[0].iov_base = buf;
+    vec[0].iov_len = CONN_READ_BUF_SIZE;
+    vec[1].iov_base = extra;
+    vec[1].iov_len = CONN_READ_BUF_SIZE;
+    ret = readv(sockfd, vec, 2);
+
+    if (ret <= 0)
+    {
+        print_log("LOG_TYPE_ERR", "Read Msg error errno is %d", errno);
+        return;
+    }
+
+    print_log(LOG_TYPE_DEBUG, "Get client msg %s", buf);
+
+    channel_handle_write(sockfd, buf);
+}
+
+static void channel_handle_write(int sockfd, char *buf)
+{
+    int len = strlen(buf);
+    int ret = write(sockfd, buf, len);
+
+    if (ret < 0)
+    {
+        if (errno == EAGAIN)
+        {
+            struct epoll_event ev;
+            ev.data.fd = fd;
+            ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
+    
+            epoll_ctl(pmaster->epfd, EPOLL_CTL_MOD, sockfd, &ev);
+        }
+    }
+    else
+    {
+        if (ret == len)
+        {
+            print_log(LOG_TYPE_DEBUG, "Send client msg over");
+        }
+        else
+        {
+            struct epoll_event ev;
+            ev.data.fd = fd;
+            ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
+    
+            epoll_ctl(pmaster->epfd, EPOLL_CTL_MOD, sockfd, &ev);
+        }
+
     }
 }

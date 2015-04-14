@@ -4,6 +4,9 @@
 #include "common.h"
 #include "log.h"
 
+#define CONN_READ_BUF_SIZE 1024
+#define CONN_WRITE_BUF_SIZE 1024
+
 struct master
 {
     pthread_t tid;
