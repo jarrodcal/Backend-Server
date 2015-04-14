@@ -71,14 +71,17 @@ int listen_init(int* listenfd, const char* ip, unsigned short port)
     return 0;
 }
 
-//两种结构体的大小是一致的, INPROGRESS 原因是设置套接字为阻塞模式
+//sockaddr_in 和 sockaddr 两种结构体的大小是一致的
+//ECONNABORTED  client send rst after three times handshake
+//EAGAIN fd can not read currently
+//EINTER system inter
 int fsock_accept(int listenfd, struct sockaddr_in *cli_addr, socklen_t cli_len)
 {
     int sockfd = -1;
 
     if ((sockfd = accept(listenfd, (struct sockaddr *)cli_addr, &cli_len)) < 0)
     {
-        if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
+        if ((errno != EAGAIN) && (errno != ECONNABORTED) && (errno != EINTER))
             print_log(LOG_TYPE_ERR, "accept error. errno = %d", errno);
     }
 

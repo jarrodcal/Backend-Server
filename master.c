@@ -91,7 +91,7 @@ void fs_accept(master_t pmaster)
 
     while (1)
     {
-	memset(cli_addr, 0, cli_len);
+        memset(cli_addr, 0, cli_len);
         sockfd = fsock_accept(pmaster->listenfd, cli_addr, cli_len);
 
         if (sockfd > 0)
