@@ -22,6 +22,8 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#define MEM_FREE(p) if (p!=NULL) {free(p); p=NULL;}
+
 void setnonblock(int sock);
 void setreuse(int sock);
 void set_tcp_nodelay(int sock);

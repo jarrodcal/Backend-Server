@@ -132,8 +132,12 @@ void fs_accept(master_t pmaster)
         sockfd = fsock_accept(pmaster->listenfd, cli_addr, cli_len);
 
         if (sockfd <= 0)
+        {
+            MEM_FREE(cli_addr);
             return;
+        }
         
+        pmaster->accept_count++;
         setnonblock(sockfd);
         master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
 
@@ -142,12 +146,8 @@ void fs_accept(master_t pmaster)
 
         print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
     }
-
-    if (cli_addr != NULL)
-    {
-        free(cli_addr);
-        cli_addr = NULL;
-    }
+    
+    MEM_FREE(cli_addr);
 }
 
 void channel_handle_read(master_t pmaster, int sockfd)
