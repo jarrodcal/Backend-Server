@@ -66,20 +66,25 @@ void master_loop(master_t pmaster)
                 fs_accept(pmaster);
                 continue;
             }
-
             if (evs[i].events & EPOLLIN)
             {
-                channel_handle_read(sockfd);
+                channel_handle_read(pmaster, sockfd);
             }
-
             if (evs[i].events & EPOLLOUT)
             {
-                channel_handle_write(sockfd);
+                channel_handle_write(pmaster, sockfd, "hello world");
             }
-
             if ((evs[i].events & EPOLLERR) || (evs[i].events & EPOLLHUP))
             {
-                print_log(LOG_TYPE_DEBUG, "some one drop");
+                print_log(LOG_TYPE_DEBUG, "EPOLLERR or EPOLLHUP occure");
+
+                master_add_fd(pmaster, sockfd, EPOLL_CTL_DEL);
+                close(sockfd);
+            }
+            if (evs[i].events & EPOLLRDHUP)
+            {
+                print_log(LOG_TYPE_DEBUG, "EPOLLRDHUP occure");
+
                 master_add_fd(pmaster, sockfd, EPOLL_CTL_DEL);
                 close(sockfd);
             }
@@ -91,7 +96,16 @@ void master_add_fd(master_t pmaster, int fd, int op)
 {
     struct epoll_event ev;
     ev.data.fd = fd;
-    ev.events = EPOLLIN | EPOLLET;
+    ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+    
+    epoll_ctl(pmaster->epfd, op, fd, &ev);
+}
+
+void master_mod_fd(master_t pmaster, int fd, int op)
+{
+    struct epoll_event ev;
+    ev.data.fd = fd;
+    ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP | EPOLLOUT;
     
     epoll_ctl(pmaster->epfd, op, fd, &ev);
 }
@@ -109,16 +123,16 @@ void fs_accept(master_t pmaster)
         memset(cli_addr, 0, cli_len);
         sockfd = fsock_accept(pmaster->listenfd, cli_addr, cli_len);
 
-        if (sockfd > 0)
-        {
-            setnonblock(sockfd);
-            master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
+        if (sockfd <= 0)
+            return;
+        
+        setnonblock(sockfd);
+        master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
 
-            char *remote_ip = inet_ntoa(cli_addr->sin_addr);
-            unsigned short remote_port = cli_addr->sin_port;
+        char *remote_ip = inet_ntoa(cli_addr->sin_addr);
+        unsigned short remote_port = cli_addr->sin_port;
 
-            print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
-        }
+        print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
     }
 
     if (cli_addr != NULL)
@@ -128,7 +142,7 @@ void fs_accept(master_t pmaster)
     }
 }
 
-static void channel_handle_read(int sockfd)
+void channel_handle_read(master_t pmaster, int sockfd)
 {
     char buf[CONN_READ_BUF_SIZE] = {0};
     char extra[CONN_READ_BUF_SIZE] = {0};
@@ -138,49 +152,38 @@ static void channel_handle_read(int sockfd)
     vec[0].iov_len = CONN_READ_BUF_SIZE;
     vec[1].iov_base = extra;
     vec[1].iov_len = CONN_READ_BUF_SIZE;
-    ret = readv(sockfd, vec, 2);
+    int ret = readv(sockfd, vec, 2);
 
     if (ret <= 0)
     {
-        print_log("LOG_TYPE_ERR", "Read Msg error errno is %d", errno);
+        if (errno != EAGAIN)
+            print_log(LOG_TYPE_ERR, "Read Msg error errno is %d", errno);
+            
         return;
     }
 
-    print_log(LOG_TYPE_DEBUG, "Get client msg %s", buf);
+    print_log(LOG_TYPE_DEBUG, "Read client msg %s", buf);
 
-    channel_handle_write(sockfd, buf);
+    channel_handle_write(pmaster, sockfd, buf);
 }
 
-static void channel_handle_write(int sockfd, char *buf)
+void channel_handle_write(master_t pmaster, int sockfd, char *buf)
 {
     int len = strlen(buf);
     int ret = write(sockfd, buf, len);
 
     if (ret < 0)
     {
+        print_log(LOG_TYPE_DEBUG, "Write error");
+
         if (errno == EAGAIN)
-        {
-            struct epoll_event ev;
-            ev.data.fd = fd;
-            ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
-    
-            epoll_ctl(pmaster->epfd, EPOLL_CTL_MOD, sockfd, &ev);
-        }
+            master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
     }
     else
     {
         if (ret == len)
-        {
-            print_log(LOG_TYPE_DEBUG, "Send client msg over");
-        }
+            print_log(LOG_TYPE_DEBUG, "Write client msg over");
         else
-        {
-            struct epoll_event ev;
-            ev.data.fd = fd;
-            ev.events = EPOLLIN | EPOLLET | EPOLLOUT;
-    
-            epoll_ctl(pmaster->epfd, EPOLL_CTL_MOD, sockfd, &ev);
-        }
-
+            master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
     }
 }
