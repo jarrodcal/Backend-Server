@@ -36,6 +36,13 @@ void master_close(master_t pmaster)
     pmaster = NULL;
 }
 
+/****
+1. EPOLLIN 新连接到来或者服务端内核层面收到数据通知
+2. EPOLLOUT 服务端内核层面可以写通知
+3. EPOLLERR/EPOLLHUP 读写非工作状态下的sockfd，客户端非正常关闭，断连接
+4. EPOLLRDHUP 客户端正常关闭(close || ctrl+c)， 同时也会触发epolln事件
+***/
+
 void master_loop(master_t pmaster)
 {
     int nfds = 0;
@@ -103,6 +110,8 @@ void master_add_fd(master_t pmaster, int fd, int op)
 
 void master_mod_fd(master_t pmaster, int fd, int op)
 {
+    print_log(LOG_TYPE_DEBUG, "Write out event");
+
     struct epoll_event ev;
     ev.data.fd = fd;
     ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP | EPOLLOUT;
@@ -120,7 +129,6 @@ void fs_accept(master_t pmaster)
 
     while (1)
     {
-        memset(cli_addr, 0, cli_len);
         sockfd = fsock_accept(pmaster->listenfd, cli_addr, cli_len);
 
         if (sockfd <= 0)
@@ -174,16 +182,19 @@ void channel_handle_write(master_t pmaster, int sockfd, char *buf)
 
     if (ret < 0)
     {
-        print_log(LOG_TYPE_DEBUG, "Write error");
-
         if (errno == EAGAIN)
             master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
     }
     else
     {
         if (ret == len)
+        {
             print_log(LOG_TYPE_DEBUG, "Write client msg over");
+            close(sockfd);
+        }
         else
+        {
             master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
+        }
     }
 }
