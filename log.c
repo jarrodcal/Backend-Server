@@ -30,18 +30,11 @@ static void log_write2disk(log_t plog)
     strcat(log_name, plog->name);
     pthread_mutex_lock(&plog->mutex);
 
-    char *tmpbuf = NULL;
-
     if (plog->index != 0)
     {
         if ((file = fopen(log_name, "a")) != NULL)
         {
             size = fwrite(plog->buffer, 1, plog->index, file);
-            tmpbuf = calloc(1, size);
-
-            if (tmpbuf != NULL)
-                memcpy(tmpbuf, plog->buffer, size);
-
             plog->index -= size;
             pthread_cond_signal(&plog->cond);
             fclose(file);

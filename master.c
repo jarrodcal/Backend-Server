@@ -138,6 +138,7 @@ void fs_accept(master_t pmaster)
         }
         
         pmaster->accept_count++;
+
         setnonblock(sockfd);
         master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
 
@@ -146,8 +147,6 @@ void fs_accept(master_t pmaster)
 
         print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
     }
-    
-    MEM_FREE(cli_addr);
 }
 
 void channel_handle_read(master_t pmaster, int sockfd)
