@@ -3,8 +3,9 @@
 
 #include "common.h"
 #include "log.h"
+#include "master.h"
 
 void create_status_system(master_t);
-void get_master_status(master_t);
+void *get_master_status(void *);
 
 #endif

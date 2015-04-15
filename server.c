@@ -34,6 +34,7 @@ int main()
 
     register_log_type(LOG_TYPE_ERR, "err.log");
     register_log_type(LOG_TYPE_DEBUG, "debug.log");
+    register_log_type(LOG_TYPE_STATUS, "status.log");
 
     const char *ip = "172.16.38.26";
     unsigned short port = 9432;
@@ -49,6 +50,8 @@ int main()
     master_t pmaster = master_create();
     pmaster->listenfd = listenfd;
     master_add_fd(pmaster, listenfd, EPOLL_CTL_ADD);
+
+    create_status_system(pmaster);
 
     print_log(LOG_TYPE_DEBUG, "Begin listening ..., file = %s, line = %d", __FILE__, __LINE__);
 

@@ -10,17 +10,19 @@ void create_status_system(master_t pmaster)
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-    if (pthread_create(&tid, &attr, get_master_status, pmaster) != 0)
+    if (pthread_create(&tid, &attr, get_master_status, (void *)pmaster) != 0)
     {
         printf("create status pthread error\n");
-        return -1;
+        return;
     }
 
     pthread_attr_destroy(&attr);
 }
 
-void get_master_status(master_t pmaster)
+void *get_master_status(void *param)
 {
+    master_t pmaster = (master_t)param;
+
     while (1)
     {
         int count = pmaster->accept_count;
@@ -28,4 +30,6 @@ void get_master_status(master_t pmaster)
         
         sleep(2);
     }
+
+    return NULL;
 }
