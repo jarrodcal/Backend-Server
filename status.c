@@ -12,7 +12,8 @@ void create_status_system(master_t pmaster)
 
     if (pthread_create(&tid, &attr, get_master_status, (void *)pmaster) != 0)
     {
-        printf("create status pthread error\n");
+        print_log(LOG_TYPE_ERR, "create status pthread error");
+        pthread_attr_destroy(&attr);
         return;
     }
 
@@ -28,7 +29,7 @@ void *get_master_status(void *param)
         int count = pmaster->accept_count;
         print_log(LOG_TYPE_STATUS, "Master accept count is %d ", count);
         
-        sleep(2);
+        sleep(1);
     }
 
     return NULL;

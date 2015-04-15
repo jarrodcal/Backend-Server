@@ -1,6 +1,7 @@
 #include "log.h"
 #include "master.h"
 #include "slave.h"
+#include "status.h"
 
 static int setlimit()
 {
@@ -8,6 +9,7 @@ static int setlimit()
 
     rt.rlim_cur = 4000000;
     rt.rlim_max = 4000000;
+    
     if (setrlimit(RLIMIT_NOFILE, &rt) == -1) 
     { 
         print_log(LOG_TYPE_ERR, "setrlimit fd, file = %s, line = %d", __FILE__, __LINE__);
@@ -16,6 +18,7 @@ static int setlimit()
 
     rt.rlim_cur = RLIM_INFINITY;
     rt.rlim_max = RLIM_INFINITY;
+
     if (setrlimit(RLIMIT_CORE, &rt) == -1) 
     { 
         print_log(LOG_TYPE_ERR, "setrlimit core, file = %s, line = %d", __FILE__, __LINE__);
