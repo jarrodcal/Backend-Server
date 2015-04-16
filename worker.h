@@ -1,5 +1,8 @@
-#ifndef __SLAVE_H__
-#define __SLAVE_H__
+#ifndef __WORKER_H__
+#define __WORKER_H__
+
+#include "common.h"
+#include "log.h"
 
 struct worker
 {
@@ -13,12 +16,14 @@ typedef struct worker worker;
 typedef struct worker * worker_t;
 
 worker_t worker_create();
-void worker_close(master_t pmaster);
-void worker_loop(master_t pmaster);
+void worker_close(worker_t pworker);
+void worker_loop(worker_t pworker);
+void create_worker_system(int count);
 
-void master_add_fd(master_t pmaster, int fd, int op);
-void fs_accept(master_t pmaster);
-void channel_handle_read(master_t pmaster, int sockfd);
-void channel_handle_write(master_t pmaster, int sockfd, char *buf);
+void worker_add_fd(worker_t pworker, int fd, int op);
+void worker_del_fd(worker_t pworker, int fd, int op);
+
+void channel_handle_read(worker_t pworker, int sockfd);
+void channel_handle_write(worker_t pworker, int sockfd, char *buf);
 
 #endif

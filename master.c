@@ -1,12 +1,15 @@
 #include "master.h"
 
+extern woker ** g_ppwoker;
+extern int g_workcount;
+
 master_t master_create()
 {
     master_t pmaster = (master_t)malloc(sizeof(master));
 
     if (pmaster == NULL)
     {
-        printf("malloc master error\n");
+        print_log(LOG_TYPE_ERR, "malloc master error\n");
         return NULL;
     }
 
@@ -119,6 +122,25 @@ void master_mod_fd(master_t pmaster, int fd, int op)
     epoll_ctl(pmaster->epfd, op, fd, &ev);
 }
 
+static worker_t find_worker()
+{
+    int i = 0;
+    int min = 0;
+    int cur = 0;
+    int index = 0;
+
+    //寻找当前处理连接最少的，后期看情况是否random(g_workcount)之间的某个线程
+    for (; i<g_workcount; i++)
+    {
+        cur = g_ppwoker[i]->total_count - g_ppwoker[i]->closed_count;
+
+        if (cur < min)
+            index = i;
+    }
+
+    return g_ppwoker[index];
+}
+
 void fs_accept(master_t pmaster)
 {
     struct sockaddr_in *cli_addr = (struct sockaddr_in *)malloc(sizeof(struct sockaddr_in));
@@ -139,8 +161,10 @@ void fs_accept(master_t pmaster)
         
         pmaster->accept_count++;
 
+        //主线程加此逻辑？
+        worker_t pworker = find_worker();
         setnonblock(sockfd);
-        master_add_fd(pmaster, sockfd, EPOLL_CTL_ADD);
+        worker_add_fd(pworker, sockfd, EPOLL_CTL_ADD);
 
         char *remote_ip = inet_ntoa(cli_addr->sin_addr);
         unsigned short remote_port = cli_addr->sin_port;
@@ -149,6 +173,7 @@ void fs_accept(master_t pmaster)
     }
 }
 
+//由于是ET模式，需要循环读取socket直到返回码<0且errno==EAGAIN
 void channel_handle_read(master_t pmaster, int sockfd)
 {
     char buf[CONN_READ_BUF_SIZE] = {0};

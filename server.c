@@ -1,7 +1,10 @@
 #include "log.h"
 #include "master.h"
-#include "slave.h"
+#include "woker.h"
 #include "status.h"
+
+woker ** g_ppwoker = NULL;
+int g_workcount = 8;
 
 static int setlimit()
 {
@@ -9,7 +12,7 @@ static int setlimit()
 
     rt.rlim_cur = 4000000;
     rt.rlim_max = 4000000;
-    
+
     if (setrlimit(RLIMIT_NOFILE, &rt) == -1) 
     { 
         print_log(LOG_TYPE_ERR, "setrlimit fd, file = %s, line = %d", __FILE__, __LINE__);
@@ -41,6 +44,7 @@ int main()
 
     const char *ip = "172.16.38.26";
     unsigned short port = 9432;
+    int count = g_workcount;
 
     int listenfd = -1;
 
@@ -55,6 +59,7 @@ int main()
     master_add_fd(pmaster, listenfd, EPOLL_CTL_ADD);
 
     create_status_system(pmaster);
+    create_worker_system(count);
 
     print_log(LOG_TYPE_DEBUG, "Begin listening ..., file = %s, line = %d", __FILE__, __LINE__);
 

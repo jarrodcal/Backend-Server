@@ -1,6 +1,7 @@
 #include "status.h"
-#include "common.h"
-#include "log.h"
+
+extern woker ** g_ppwoker;
+extern int g_workcount;
 
 void create_status_system(master_t pmaster)
 {
@@ -23,14 +24,15 @@ void create_status_system(master_t pmaster)
 void *get_master_status(void *param)
 {
     master_t pmaster = (master_t)param;
+    int i;
 
     while (1)
     {
-        int count = pmaster->accept_count;
-        print_log(LOG_TYPE_STATUS, "Master accept count is %d ", count);
+        print_log(LOG_TYPE_STATUS, "Master accept count is %d ", pmaster->accept_count);
+
+        for (i=0;i<g_workercount;i++)
+            print_log(LOG_TYPE_STATUS, "Worker %d total count is %d ", i, g_ppwoker[i]->total_count);
         
         sleep(1);
     }
-
-    return NULL;
 }
