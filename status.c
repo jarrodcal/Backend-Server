@@ -1,6 +1,6 @@
 #include "status.h"
 
-extern woker ** g_ppwoker;
+extern worker ** g_ppworker;
 extern int g_workcount;
 
 void create_status_system(master_t pmaster)
@@ -25,13 +25,20 @@ void *get_master_status(void *param)
 {
     master_t pmaster = (master_t)param;
     int i;
+    int cur;
 
     while (1)
     {
         print_log(LOG_TYPE_STATUS, "Master accept count is %d ", pmaster->accept_count);
 
-        for (i=0;i<g_workercount;i++)
-            print_log(LOG_TYPE_STATUS, "Worker %d total count is %d ", i, g_ppwoker[i]->total_count);
+        for (i=0; i<g_workcount; i++)
+        {
+            if (g_ppworker[i])
+            {
+                cur = g_ppworker[i]->total_count - g_ppworker[i]->closed_count - g_ppworker[i]->neterr_count;
+                print_log(LOG_TYPE_STATUS, "Worker %d total %d, Cur is %d ", i, g_ppworker[i]->total_count, cur);
+            }
+        }
         
         sleep(1);
     }

@@ -1,9 +1,9 @@
 #include "log.h"
 #include "master.h"
-#include "woker.h"
+#include "worker.h"
 #include "status.h"
 
-woker ** g_ppwoker = NULL;
+worker ** g_ppworker = NULL;
 int g_workcount = 8;
 
 static int setlimit()
@@ -31,6 +31,22 @@ static int setlimit()
     return 0;
 }
 
+void echo_resource_init()
+{
+    g_ppworker = (worker **)malloc(sizeof(worker *) * g_workcount);
+
+    if (g_ppworker == NULL)
+    {
+        print_log(LOG_TYPE_ERR, "Malloc g_ppworker error");
+        exit(1);   
+    }
+
+    int i;
+
+    for (i=0; i<g_workcount; i++)
+        g_ppworker[i] = NULL;
+}
+
 int main()
 {
     setlimit();
@@ -44,8 +60,6 @@ int main()
 
     const char *ip = "172.16.38.26";
     unsigned short port = 9432;
-    int count = g_workcount;
-
     int listenfd = -1;
 
     if (listen_init(&listenfd, ip, port) == -1)
@@ -58,8 +72,9 @@ int main()
     pmaster->listenfd = listenfd;
     master_add_fd(pmaster, listenfd, EPOLL_CTL_ADD);
 
+    echo_resource_init();
     create_status_system(pmaster);
-    create_worker_system(count);
+    create_worker_system(g_workcount);
 
     print_log(LOG_TYPE_DEBUG, "Begin listening ..., file = %s, line = %d", __FILE__, __LINE__);
 

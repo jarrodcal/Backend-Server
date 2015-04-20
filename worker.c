@@ -1,9 +1,9 @@
 #include "worker.h"
 
-extern woker ** g_ppwoker;
+extern worker ** g_ppworker;
 extern int g_workcount;
 
-worker_t worker_create();
+worker_t worker_create()
 {
     worker_t pworker = (worker_t)malloc(sizeof(worker));
 
@@ -33,9 +33,9 @@ void * worker_loop(void *param)
     worker_t pworker = (worker_t)param;
 
     int nfds = 0;
-    int sockfd = -1;
     int timeout = 100;
     struct epoll_event evs[4096];
+    connector_t pconn = NULL;
     int i;
 
     while (1)
@@ -53,52 +53,34 @@ void * worker_loop(void *param)
 
         for (i = 0; i < nfds; i++)
         {
-            sockfd = evs[i].data.fd;
+            pconn = (connector_t)evs[i].data.ptr;
             
             if (evs[i].events & EPOLLIN)
             {
-                channel_handle_read(pworker, sockfd);
+                worker_handle_read(pconn, evs[i].events);
             }
             if (evs[i].events & EPOLLOUT)
             {
-                channel_handle_write(pworker, sockfd, "hello world");
+                worker_handle_write(pconn);
             }
             if ((evs[i].events & EPOLLERR) || (evs[i].events & EPOLLHUP))
             {
                 print_log(LOG_TYPE_DEBUG, "EPOLLERR or EPOLLHUP occure");
-                pworker->closed_count++;
+                pworker->neterr_count++;
 
-                worker_del_fd(pworker, sockfd, EPOLL_CTL_DEL);
-                close(sockfd);
+                connector_close(pconn);
             }
             if (evs[i].events & EPOLLRDHUP)
             {
                 print_log(LOG_TYPE_DEBUG, "EPOLLRDHUP occure");
                 pworker->closed_count++;
 
-                worker_del_fd(pworker, sockfd, EPOLL_CTL_DEL);
-                close(sockfd);
+                connector_close(pconn);
             }
         }
     }
-}
 
-void worker_add_fd(worker_t pworker, int fd, int op)
-{
-    struct epoll_event ev;   
-    ev.data.fd = fd;
-    ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-    
-    epoll_ctl(pworker->epfd, op, fd, &ev);   
-}
-
-void worker_del_fd(worker_t pworker, int fd, int op)
-{
-    struct epoll_event ev;
-    ev.data.fd = fd;
-    ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-    
-    epoll_ctl(pworker->epfd, op, fd, &ev);
+    return NULL;
 }
 
 void create_worker_system(int count)
@@ -113,9 +95,9 @@ void create_worker_system(int count)
 
     for (i=0; i<count; i++)
     {
-        g_ppwoker[i] = worker_create();
+        g_ppworker[i] = worker_create();
 
-        if (pthread_create(&tid, &attr, worker_loop, (void *)g_ppwoker[i]) != 0)
+        if (pthread_create(&tid, &attr, worker_loop, (void *)g_ppworker[i]) != 0)
         {
             print_log(LOG_TYPE_ERR, "create work thread error");
             pthread_attr_destroy(&attr);
@@ -126,34 +108,25 @@ void create_worker_system(int count)
     }
 }
 
-//由于是ET模式，需要循环读取socket直到返回码<0且errno==EAGAIN
-void channel_handle_read(worker_t pworker, int sockfd)
+void worker_handle_read(connector_t pconn, int event)
 {
-    char buf[CONN_READ_BUF_SIZE] = {0};
-    char extra[CONN_READ_BUF_SIZE] = {0};
-    struct iovec vec[2];
-
-    vec[0].iov_base = buf;
-    vec[0].iov_len = CONN_READ_BUF_SIZE;
-    vec[1].iov_base = extra;
-    vec[1].iov_len = CONN_READ_BUF_SIZE;
-    int ret = readv(sockfd, vec, 2);
-
-    if (ret <= 0)
+    if (connector_read(pconn, event) > 0)
     {
-        if (errno != EAGAIN)
-            print_log(LOG_TYPE_ERR, "Read Msg error errno is %d", errno);
-            
-        return;
+        //进行消息解析和业务处理
+        if (buffer_readable(pconn->preadbuf) > 0)
+        {
+            char *data = buffer_get_read(pconn->preadbuf);
+            size_t len = strlen(data);
+            buffer_read(pconn->preadbuf, len, TRUE);
+            print_log(LOG_TYPE_DEBUG, "Read msg %s", data);
+        
+            buffer_write(pconn->pwritebuf, data, len);
+            connector_write(pconn);
+        }
     }
-
-    print_log(LOG_TYPE_DEBUG, "Read client msg %s", buf);
-
-    channel_handle_write(pworker, sockfd, buf);
 }
 
-void channel_handle_write(worker_t pworker, int sockfd, char *buf)
+void worker_handle_write(connector_t pconn)
 {
-    int len = strlen(buf);
-    int ret = write(sockfd, buf, len);
+   connector_write(pconn);
 }

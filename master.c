@@ -1,6 +1,6 @@
 #include "master.h"
 
-extern woker ** g_ppwoker;
+extern worker ** g_ppworker;
 extern int g_workcount;
 
 master_t master_create()
@@ -72,32 +72,9 @@ void master_loop(master_t pmaster)
             sockfd = evs[i].data.fd;
 
             if (sockfd == pmaster->listenfd)
-            {
                 fs_accept(pmaster);
-                continue;
-            }
-            if (evs[i].events & EPOLLIN)
-            {
-                channel_handle_read(pmaster, sockfd);
-            }
-            if (evs[i].events & EPOLLOUT)
-            {
-                channel_handle_write(pmaster, sockfd, "hello world");
-            }
-            if ((evs[i].events & EPOLLERR) || (evs[i].events & EPOLLHUP))
-            {
-                print_log(LOG_TYPE_DEBUG, "EPOLLERR or EPOLLHUP occure");
-
-                master_add_fd(pmaster, sockfd, EPOLL_CTL_DEL);
-                close(sockfd);
-            }
-            if (evs[i].events & EPOLLRDHUP)
-            {
-                print_log(LOG_TYPE_DEBUG, "EPOLLRDHUP occure");
-
-                master_add_fd(pmaster, sockfd, EPOLL_CTL_DEL);
-                close(sockfd);
-            }
+            else
+                print_log(LOG_TYPE_ERR, "Master get non listen socket");
         }
     }
 }
@@ -111,34 +88,31 @@ void master_add_fd(master_t pmaster, int fd, int op)
     epoll_ctl(pmaster->epfd, op, fd, &ev);
 }
 
-void master_mod_fd(master_t pmaster, int fd, int op)
-{
-    print_log(LOG_TYPE_DEBUG, "Write out event");
-
-    struct epoll_event ev;
-    ev.data.fd = fd;
-    ev.events = EPOLLIN | EPOLLET | EPOLLERR | EPOLLHUP | EPOLLRDHUP | EPOLLOUT;
-    
-    epoll_ctl(pmaster->epfd, op, fd, &ev);
-}
-
 static worker_t find_worker()
 {
+    struct timespec timeval={0, 0};
+    clock_gettime(CLOCK_REALTIME, &timeval);
+
+    srand(timeval.tv_nsec);
+    int index = rand() % 8;
+
+    /*
     int i = 0;
     int min = 0;
     int cur = 0;
     int index = 0;
-
-    //寻找当前处理连接最少的，后期看情况是否random(g_workcount)之间的某个线程
+    
     for (; i<g_workcount; i++)
     {
-        cur = g_ppwoker[i]->total_count - g_ppwoker[i]->closed_count;
+        cur = g_ppworker[i]->total_count - g_ppworker[i]->closed_count - g_ppworker[i]->neterr_count;
 
         if (cur < min)
             index = i;
     }
 
-    return g_ppwoker[index];
+    */
+
+    return g_ppworker[index];
 }
 
 void fs_accept(master_t pmaster)
@@ -160,65 +134,18 @@ void fs_accept(master_t pmaster)
         }
         
         pmaster->accept_count++;
-
-        //主线程加此逻辑？
+        
         worker_t pworker = find_worker();
-        setnonblock(sockfd);
-        worker_add_fd(pworker, sockfd, EPOLL_CTL_ADD);
 
+        //TODO放在工作线程中去处理
+        setnonblock(sockfd);
         char *remote_ip = inet_ntoa(cli_addr->sin_addr);
         unsigned short remote_port = cli_addr->sin_port;
 
+        connector_t pconn = connector_create(sockfd, pworker, CONN_TYPE_CLIENT, remote_ip, remote_port);
+        connector_sig_read(pconn);
+        pworker->total_count++;
+        
         print_log(LOG_TYPE_DEBUG, "Get client from %s:%u", remote_ip, remote_port);
-    }
-}
-
-//由于是ET模式，需要循环读取socket直到返回码<0且errno==EAGAIN
-void channel_handle_read(master_t pmaster, int sockfd)
-{
-    char buf[CONN_READ_BUF_SIZE] = {0};
-    char extra[CONN_READ_BUF_SIZE] = {0};
-    struct iovec vec[2];
-
-    vec[0].iov_base = buf;
-    vec[0].iov_len = CONN_READ_BUF_SIZE;
-    vec[1].iov_base = extra;
-    vec[1].iov_len = CONN_READ_BUF_SIZE;
-    int ret = readv(sockfd, vec, 2);
-
-    if (ret <= 0)
-    {
-        if (errno != EAGAIN)
-            print_log(LOG_TYPE_ERR, "Read Msg error errno is %d", errno);
-            
-        return;
-    }
-
-    print_log(LOG_TYPE_DEBUG, "Read client msg %s", buf);
-
-    channel_handle_write(pmaster, sockfd, buf);
-}
-
-void channel_handle_write(master_t pmaster, int sockfd, char *buf)
-{
-    int len = strlen(buf);
-    int ret = write(sockfd, buf, len);
-
-    if (ret < 0)
-    {
-        if (errno == EAGAIN)
-            master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
-    }
-    else
-    {
-        if (ret == len)
-        {
-            print_log(LOG_TYPE_DEBUG, "Write client msg over");
-            close(sockfd);
-        }
-        else
-        {
-            master_mod_fd(pmaster, sockfd, EPOLL_CTL_MOD);
-        }
     }
 }
