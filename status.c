@@ -36,7 +36,7 @@ void *get_master_status(void *param)
             if (g_ppworker[i])
             {
                 cur = g_ppworker[i]->total_count - g_ppworker[i]->closed_count - g_ppworker[i]->neterr_count;
-                print_log(LOG_TYPE_STATUS, "Worker %d total %d, Cur is %d ", i, g_ppworker[i]->total_count, cur);
+                print_log(LOG_TYPE_STATUS, "Worker %d total %d, Neterr %d, Cur is %d ", i, g_ppworker[i]->total_count, g_ppworker[i]->neterr_count, cur);
             }
         }
         
