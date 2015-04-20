@@ -17,6 +17,7 @@ worker_t worker_create()
     pworker->epfd = -1;;
     pworker->total_count = 0;
     pworker->closed_count = 0;
+    pworker->neterr_count = 0;
 
     pworker->epfd = epoll_create(256);
 
