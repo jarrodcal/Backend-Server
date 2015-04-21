@@ -20,13 +20,19 @@ worker_t worker_create()
     pworker->neterr_count = 0;
 
     pworker->epfd = epoll_create(256);
+    hash_table *ht = (hash_table *)malloc(sizeof(hash_table));
+    pworker->pht = ht;
+
+    ht_init(pworker->pht, HT_KEY_CONST|HT_VALUE_CONST, 0.05);
 
     return pworker;
 }
 
 void worker_close(worker_t pworker)
 {
-
+    //redis连接关闭
+    //hash表的资源释放
+    //连接
 }
 
 void * worker_loop(void *param)
@@ -119,8 +125,18 @@ void worker_handle_read(connector_t pconn, int event)
             char *data = buffer_get_read(pconn->preadbuf);
             size_t len = strlen(data);
             buffer_read(pconn->preadbuf, len, TRUE);
+
             print_log(LOG_TYPE_DEBUG, "Read msg %s", data);
-        
+            memcpy(pconn->uid, data, len);
+
+            int len2 = sizeof(connector_t);
+            ht_insert(pconn->pworker->pht, data, len+1, pconn, len2);
+
+            size_t value_size;
+            connector_t phashcon = (connector_t)ht_get(pconn->pworker->pht, data, len+1, &value_size);
+            print_log(LOG_TYPE_DEBUG, "In hash table ip %s, port %d, uid %s", phashcon->ip, phashcon->port, phashcon->uid);
+            ht_remove(pconn->pworker->pht, data, len+1);
+
             buffer_write(pconn->pwritebuf, data, len);
             connector_write(pconn);
         }

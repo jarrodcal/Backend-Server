@@ -5,6 +5,7 @@
 #include "log.h"
 #include "conn.h"
 #include "buffer.h"
+#include "hashtable.h"
 
 struct worker
 {
@@ -15,6 +16,8 @@ struct worker
     int total_count;
     int closed_count;
     int neterr_count;
+    connector_t redis;
+    hash_table *pht;
 };
 
 typedef struct worker worker;

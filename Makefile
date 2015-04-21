@@ -2,7 +2,7 @@ TARGET = echo-server
 OBJS = $(patsubst %.c,%.o,$(wildcard *.c))
 CC = gcc
 LINK = gcc
-override CFLAGS = -Wall -O3 -g -lpthread -lrt
+override CFLAGS = -Wall -D__WITH_MURMUR -O3 -g -lpthread -lrt
 
 CCCOLOR = "\033[34m"
 LINKCOLOR = "\033[34;1m"

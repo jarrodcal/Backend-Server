@@ -25,15 +25,21 @@
 typedef int BOOL;
 
 #define MEM_FREE(p) if (p!=NULL) {free(p); p=NULL;}
+
 #define BUFFER_SIZE 1024
 #define UID_MAX_LEN 32
 #define WAITFD_COUNT 10240
 #define IP_LEN 16
+
 #define TRUE 1
 #define FALSE 0
+
 #define CONN_TYPE_CLIENT 0
 #define CONN_TYPE_REDIS 1
 #define CONN_TYPE_MYSQL 2
+
+#define REDIS_IP 172.16.89.100
+#define REDIS_PORT 29023
 
 void setnonblock(int sock);
 void setreuse(int sock);
