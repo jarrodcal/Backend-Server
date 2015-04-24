@@ -26,6 +26,7 @@ connector_t connector_create(int fd, worker_t pworker, int type, char *ip, int p
     memcpy(pconn->ip, ip, IP_LEN);
     pconn->port = port;
     pconn->type = type;
+    pconn->state = CONN_STATE_NONE;
 
     pconn->preadbuf = buffer_create(pconn, BUFFER_SIZE);
     pconn->pwritebuf = buffer_create(pconn, BUFFER_SIZE);

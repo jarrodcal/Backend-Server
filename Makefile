@@ -1,4 +1,4 @@
-TARGET = echo-server
+TARGET = sever-demo
 OBJS = $(patsubst %.c,%.o,$(wildcard *.c))
 CC = gcc
 LINK = gcc

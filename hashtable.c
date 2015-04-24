@@ -449,7 +449,7 @@ void ht_set_seed(uint32_t seed){
 hash_entry *he_create(int flags, void *key, size_t key_size, void *value,
         size_t value_size)
 {
-    hash_entry *entry = malloc(sizeof(*entry));
+    hash_entry *entry = malloc(sizeof(hash_entry));
     if(entry == NULL) {
         debug("Failed to create hash_entry\n");
         return NULL;

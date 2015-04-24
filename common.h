@@ -33,17 +33,25 @@ typedef int BOOL;
 
 #define TRUE 1
 #define FALSE 0
+#define INVALID_ID (-1)
 
 #define CONN_TYPE_CLIENT 0
 #define CONN_TYPE_REDIS 1
 #define CONN_TYPE_MYSQL 2
 
-#define REDIS_IP 172.16.89.100
+#define CONN_STATE_NONE 0
+#define CONN_STATE_CONNECTING 1
+#define CONN_STATE_RUN 2
+#define CONN_STATE_CLOSED 3
+
+#define REDIS_IP "172.16.89.100"
 #define REDIS_PORT 29023
+#define REDIS_CMD_LEN 128
 
 void setnonblock(int sock);
 void setreuse(int sock);
 void set_tcp_nodelay(int sock);
+void set_tcp_fastclose(int sock);
 int listen_init(int* listenfd, const char* ip, unsigned short port);
 int fsock_accept(int listenfd, struct sockaddr_in *cli_addr, socklen_t cli_len);
 

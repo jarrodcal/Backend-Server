@@ -15,6 +15,7 @@ struct connector
     char ip[16];
     int port;
     int type;
+    int state;
     buffer_t preadbuf;
     buffer_t pwritebuf;
     struct worker * pworker;
