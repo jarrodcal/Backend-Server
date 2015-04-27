@@ -23,7 +23,23 @@ int make_cmd(char *buffer, int max_len, int count, ...)
     return 0;
 }
 
-int redis_on_recv_data(connector_t connector)
+////"$6\r\nfoobar\r\n"
+char *get_analyse_data(char *origindata)
 {
-    return 0;
+    char ch = *origindata;
+    char gdids[100] = {0};
+
+    if (ch == BULKREPLY)
+    {
+        char *begin = strchr(origindata, '\n');
+        char *again = strchr(begin, '\r');
+        int len = again - begin - 1;
+        memcpy(gdids, begin+1, len);
+    }
+    else
+    {
+        print_log(LOG_TYPE_DEBUG, "not BULKREPLY is  %s", origindata);
+    }
+
+    return gdids;
 }

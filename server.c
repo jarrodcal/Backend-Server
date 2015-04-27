@@ -13,8 +13,8 @@ static int setlimit()
     rt.rlim_cur = 4000000;
     rt.rlim_max = 4000000;
 
-    if (setrlimit(RLIMIT_NOFILE, &rt) == -1) 
-    { 
+    if (setrlimit(RLIMIT_NOFILE, &rt) == -1)
+    {
         print_log(LOG_TYPE_ERR, "setrlimit fd, file = %s, line = %d", __FILE__, __LINE__);
         return -1;
     }
@@ -22,8 +22,8 @@ static int setlimit()
     rt.rlim_cur = RLIM_INFINITY;
     rt.rlim_max = RLIM_INFINITY;
 
-    if (setrlimit(RLIMIT_CORE, &rt) == -1) 
-    { 
+    if (setrlimit(RLIMIT_CORE, &rt) == -1)
+    {
         print_log(LOG_TYPE_ERR, "setrlimit core, file = %s, line = %d", __FILE__, __LINE__);
         return -1;
     }
@@ -38,7 +38,7 @@ void echo_resource_init()
     if (g_ppworker == NULL)
     {
         print_log(LOG_TYPE_ERR, "Malloc g_ppworker error");
-        exit(1);   
+        exit(1);
     }
 
     int i;
@@ -51,7 +51,7 @@ int main()
 {
     setlimit();
 
-    const char *path = "/data1/echo-server/";
+    const char *path = "/data1/Backend-Server-master/";
     init_log_system(path);
 
     register_log_type(LOG_TYPE_ERR, "err.log");

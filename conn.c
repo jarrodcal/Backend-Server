@@ -49,7 +49,9 @@ int connector_read(connector_t pconn, int events)
 
     if (pconn->sockfd == -1)
         return -1;
-    
+
+    print_log(LOG_TYPE_DEBUG, "connector_read");
+
     while (1)
     {
         writable = buffer_writable(pconn->preadbuf);
@@ -59,6 +61,8 @@ int connector_read(connector_t pconn, int events)
         vec[1].iov_base = exbuf;
         vec[1].iov_len = sizeof(exbuf);
         ret = readv(pconn->sockfd, vec, 2);
+
+        print_log(LOG_TYPE_DEBUG, "ret is %d, %s", ret, vec[0].iov_base);
 
         if (ret < 0)
         {
@@ -139,6 +143,7 @@ int connector_write(connector_t pconn)
             if (ret < readable)
             {
                 connector_sig_write(pconn);
+
             }
             else
             {
@@ -160,9 +165,9 @@ void connector_close(connector_t pconn)
     {
         connector_update(pconn, EPOLL_CTL_DEL);
         close(pconn->sockfd);
-        pconn->sockfd = -1;    
+        pconn->sockfd = -1;
     }
-    
+
     buffer_destroy(pconn->preadbuf);
     buffer_destroy(pconn->pwritebuf);
     MEM_FREE(pconn);

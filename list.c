@@ -1,30 +1,28 @@
 #include "list.h"
 
-list_t list_create(void (*freefun)(void *value))
+list_t list_create()
 {
     list_t plist = (list_t)malloc(sizeof(list));
 
     if (plist == NULL)
     {
-        printf("malloc error\n");
+        print_log(LOG_TYPE_ERR, "list_create error file = %s, line = %d", __FILE__, __LINE__);
         return NULL;
     }
 
     plist->head = NULL;
     plist->tail = NULL;
     plist->len = 0;
-    plist->free = freefun;
 
     return plist;
 }
 
-void node_free(list_t plist, node_t pnode)
+void node_free(list_t plist)
 {
-    if (plist->free)
-    {
-        (plist->free)(pnode->value);
-        free(pnode);
-    }
+    if (plist->len > 0)
+        list_pop_head(plist);
+
+    free(plist);
 }
 
 int list_push_tail(list_t plist, void *value)
@@ -36,13 +34,13 @@ int list_push_tail(list_t plist, void *value)
 
     if (pnode == NULL)
     {
-        printf("malloc error\n");
+        print_log(LOG_TYPE_ERR, "list node creaet error file = %s, line = %d", __FILE__, __LINE__);
         return 0;
     }
 
     pnode->value = value;
     pnode->next = NULL;
-    
+
     if (plist->head == NULL)
     {
         plist->head = plist->tail = pnode;
@@ -58,23 +56,14 @@ int list_push_tail(list_t plist, void *value)
     return 1;
 }
 
-void list_pop_head(list_t plist, node_t pnode)
+void list_pop_head(list_t plist)
 {
     if ((plist == NULL) || (plist->head == NULL))
-        return NULL;
+        return;
 
-    pnode = plist->head;
-    plist->head = plist->head->next;
-    plist->len--;
-}
-
-void list_travl(list_t plist)
-{
     node_t pnode = plist->head;
+    plist->head = pnode->next;
+    plist->len--;
 
-    while (pnode)
-    {
-        void *nodeval = pnode->value;
-        pnode = pnode->next;
-    }
+    free(pnode);
 }

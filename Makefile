@@ -1,4 +1,4 @@
-TARGET = sever-demo
+TARGET = server-demo
 OBJS = $(patsubst %.c,%.o,$(wildcard *.c))
 CC = gcc
 LINK = gcc

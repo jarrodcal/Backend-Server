@@ -21,10 +21,11 @@ worker_t worker_create()
 
     hash_table *ht = (hash_table *)malloc(sizeof(hash_table));
     pworker->pht = ht;
-    ht_init(pworker->pht, HT_KEY_CONST|HT_VALUE_CONST, 0.05);
+    ht_init(pworker->pht, HT_VALUE_CONST, 0.05);
 
     //初始fd为-1，表示资源的长连接未建立或者资源掉线
     pworker->redis = connector_create(INVALID_ID, pworker, CONN_TYPE_REDIS, REDIS_IP, REDIS_PORT);
+    pworker->plist = list_create();
 
     return pworker;
 }
@@ -35,10 +36,13 @@ void worker_close(worker_t pworker)
     //hash表的资源释放
     //连接关闭
     //ht_destroy
+    //list
 }
 
 static void connect_redis_done(connector_t pconredis)
 {
+    print_log(LOG_TYPE_DEBUG, "connect_redis_done");
+
     int error = 0;
     socklen_t len = sizeof(int);
 
@@ -130,11 +134,15 @@ void handle_time_check(worker_t pworker)
     connector_t pconredis = pworker->redis;
 
     if (pconredis->state == CONN_STATE_NONE || pconredis->state == CONN_STATE_CLOSED)
-        connect_redis(pconredis);
+        connect_redis(pconredis);/*
     else
         reids_heartbeat(pconredis);
+    */
+    //定时查看哈希表中的连接，超过一定时间，如果对方没有关闭，需要关闭
 }
 
+
+//这种异步非阻塞的模式，带来高性能的同时需要开设空间保存还在等待异步返回的数据，如：redis回调的顺序链表，保存connector的哈希表
 void * worker_loop(void *param)
 {
     worker_t pworker = (worker_t)param;
@@ -161,7 +169,7 @@ void * worker_loop(void *param)
         for (i = 0; i < nfds; i++)
         {
             pconn = (connector_t)evs[i].data.ptr;
-            
+
             if (evs[i].events & EPOLLIN)
             {
                 worker_handle_read(pconn, evs[i].events);
@@ -225,7 +233,7 @@ void worker_handle_read(connector_t pconn, int event)
         case CONN_TYPE_CLIENT:
             channel_handle_client_read(pconn, event);
             break;
-        
+
         case CONN_TYPE_REDIS:
             channel_handle_redis_read(pconn, event);
             break;
@@ -239,7 +247,7 @@ void worker_handle_write(connector_t pconn)
         case CONN_TYPE_CLIENT:
             channel_handle_client_write(pconn);
             break;
-        
+
         case CONN_TYPE_REDIS:
             channel_handle_redis_write(pconn);
             break;
@@ -256,20 +264,43 @@ void channel_handle_client_read(connector_t pconn, int event)
             char *data = buffer_get_read(pconn->preadbuf);
             size_t len = strlen(data);
             buffer_read(pconn->preadbuf, len, TRUE);
+            memcpy(pconn->uid, data, len);
 
             print_log(LOG_TYPE_DEBUG, "Read msg %s", data);
-            memcpy(pconn->uid, data, len);
 
             int len2 = sizeof(connector_t);
             ht_insert(pconn->pworker->pht, data, len+1, pconn, len2);
 
-            size_t value_size;
-            connector_t phashcon = (connector_t)ht_get(pconn->pworker->pht, data, len+1, &value_size);
-            print_log(LOG_TYPE_DEBUG, "In hash table ip %s, port %d, uid %s", phashcon->ip, phashcon->port, phashcon->uid);
-            ht_remove(pconn->pworker->pht, data, len+1);
+            print_log(LOG_TYPE_DEBUG, "insert key is %s, len is %d", data, len);
 
-            buffer_write(pconn->pwritebuf, data, len);
-            connector_write(pconn);
+            context_t pcontext = (context_t)malloc(sizeof(context));
+            memcpy(pcontext->uid, data, len);
+            list_push_tail(pconn->pworker->plist, pcontext);
+            print_log(LOG_TYPE_DEBUG, "list head val is %s", (char *)(pconn->pworker->plist->head->value));
+
+            char *key = "contact_upload_9";
+            char *field = data;
+            char cmd[REDIS_CMD_LEN] = {'\0'};
+
+            if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
+            {
+                print_log(LOG_TYPE_ERR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
+                return;
+            }
+
+            print_log(LOG_TYPE_DEBUG, "hget %s %s ", key, field);
+
+            len = strlen(cmd);
+
+            if (pconn->pworker->redis->state == CONN_STATE_RUN)
+            {
+                buffer_write(pconn->pworker->redis->pwritebuf, cmd, len);
+                connector_write(pconn->pworker->redis);
+            }
+            else
+            {
+                print_log(LOG_TYPE_DEBUG, "Redis not run");
+            }
         }
     }
 }
@@ -280,10 +311,54 @@ void channel_handle_redis_read(connector_t pconn, int event)
 
     if (buffer_readable(pconn->preadbuf) > 0)
     {
-        char *data = buffer_get_read(pconn->preadbuf);
-        print_log(LOG_TYPE_DEBUG, "Msg is %s", data);
-        int len = strlen(data);
-        buffer_read(pconn->preadbuf, len, TRUE);
+        char *origindata = buffer_get_read(pconn->preadbuf);
+        print_log(LOG_TYPE_DEBUG, "Msg is %s", origindata);
+        int originlen = strlen(origindata);
+        buffer_read(pconn->preadbuf, originlen, TRUE);
+
+        char *analysedata = get_analyse_data(origindata);
+        print_log(LOG_TYPE_DEBUG, "analysedata is %s", analysedata);
+
+        size_t value_size;
+
+        //多级指向要付个值且先判断下..... if == NULL
+        context_t pcontext = (context_t)pconn->pworker->plist->head->value;
+        print_log(LOG_TYPE_DEBUG, "plist value is %s\n", pcontext->uid);
+        char key[32] = {0};
+        memcpy(key, pcontext->uid, strlen(pcontext->uid));
+
+        MEM_FREE(pcontext);
+        list_pop_head(pconn->pworker->plist);
+
+        int len = strlen(key);
+        print_log(LOG_TYPE_DEBUG, "key is %s, len is %d", key, len);
+        connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len+1, &value_size);
+
+        if (pclientcon)
+        {
+            print_log(LOG_TYPE_DEBUG, "In hash table ip %s, port %d, uid %s", pclientcon->ip, pclientcon->port, pclientcon->uid);
+
+            //只存储一次连接
+            ht_remove(pconn->pworker->pht, key, len+1);
+        }
+
+        if (analysedata && pclientcon)
+        {
+            char senddata[100] = {0};
+            memcpy(senddata, key, len);
+            memcpy(senddata+len, "$", 1);
+
+            len = strlen(senddata);
+            int size = strlen(analysedata);
+            memcpy(senddata+len, analysedata, size);
+
+            len = strlen(senddata) + 1;
+
+            print_log(LOG_TYPE_DEBUG, "send client %s", senddata);
+
+            buffer_write(pclientcon->pwritebuf, senddata, len);
+            connector_write(pclientcon);
+        }
     }
 }
 
@@ -295,7 +370,7 @@ void channel_handle_client_write(connector_t pconn)
 
 void channel_handle_redis_write(connector_t pconn)
 {
-    //以非阻塞模式设置套接口，去connect Redis，当异步返回时会设置套接字为可写状态，此时Epoll返回写通知事件，可能是有数据也可能是连接状态的返回。
+    //以非阻塞模式设置套接口，去connect Redis，返回的套接字是可写状态，此时Epoll返回写通知事件，可能是有数据也可能是连接状态的返回。
     //通过con的state判断是哪种情况，通过调用getsockopt来得到返回的连接状态（连接成功和失败都会返回可写通知）
 
     if (pconn->state == CONN_STATE_CONNECTING || pconn->state == CONN_STATE_CLOSED)

@@ -7,6 +7,7 @@
 #include "buffer.h"
 #include "hashtable.h"
 #include "redis.h"
+#include "list.h"
 
 //哈希表存放建立起的连接，以uid为key，value为连接指针
 //redis变量为业务上和资源的长连接
@@ -22,6 +23,7 @@ struct worker
     int neterr_count;
     connector_t redis;
     hash_table *pht;
+    list_t plist;
 };
 
 typedef struct worker worker;
