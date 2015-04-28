@@ -7,7 +7,7 @@ void setnonblock(int sock)
 
     if (opts < 0)
     {
-        print_log(LOG_TYPE_ERR, "fcntl(sock, GETFL) is error!");
+        print_log(LOG_TYPE_ERROR, "fcntl(sock, GETFL) is error!");
         return;
     }
 
@@ -15,7 +15,7 @@ void setnonblock(int sock)
 
     if (fcntl(sock, F_SETFL, opts) < 0)
     {
-        print_log(LOG_TYPE_ERR, "fcntl(sock, SETFL, opts) is error!");
+        print_log(LOG_TYPE_ERROR, "fcntl(sock, SETFL, opts) is error!");
         return;
     }
 }
@@ -55,7 +55,7 @@ int listen_init(int* listenfd, const char* ip, unsigned short port)
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        print_log(LOG_TYPE_ERR, "create listen socket, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "create listen socket, file = %s, line = %d", __FILE__, __LINE__);
         return -1;
     }
 
@@ -70,13 +70,13 @@ int listen_init(int* listenfd, const char* ip, unsigned short port)
 
     if (bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) == -1)
     {
-        print_log(LOG_TYPE_ERR, "bind, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "bind, file = %s, line = %d", __FILE__, __LINE__);
         return -1;
     }
 
     if (listen(sockfd, 10240) == -1)
     {
-        print_log(LOG_TYPE_ERR, "listen, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "listen, file = %s, line = %d", __FILE__, __LINE__);
         return -1;
     }
 
@@ -98,7 +98,7 @@ int fsock_accept(int listenfd, struct sockaddr_in *cli_addr, socklen_t cli_len)
     if ((sockfd = accept(listenfd, (struct sockaddr *)cli_addr, &cli_len)) < 0)
     {
         if ((errno != EAGAIN) && (errno != ECONNABORTED) && (errno != EINTR))
-            print_log(LOG_TYPE_ERR, "accept error. errno = %d", errno);
+            print_log(LOG_TYPE_ERROR, "accept error. errno = %d", errno);
     }
 
     return sockfd;

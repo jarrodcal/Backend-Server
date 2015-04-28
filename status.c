@@ -13,7 +13,7 @@ void create_status_system(master_t pmaster)
 
     if (pthread_create(&tid, &attr, get_master_status, (void *)pmaster) != 0)
     {
-        print_log(LOG_TYPE_ERR, "create status pthread error");
+        print_log(LOG_TYPE_ERROR, "create status pthread error");
         pthread_attr_destroy(&attr);
         return;
     }

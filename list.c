@@ -6,7 +6,7 @@ list_t list_create()
 
     if (plist == NULL)
     {
-        print_log(LOG_TYPE_ERR, "list_create error file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "list_create error file = %s, line = %d", __FILE__, __LINE__);
         return NULL;
     }
 
@@ -34,7 +34,7 @@ int list_push_tail(list_t plist, void *value)
 
     if (pnode == NULL)
     {
-        print_log(LOG_TYPE_ERR, "list node creaet error file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "list node creaet error file = %s, line = %d", __FILE__, __LINE__);
         return 0;
     }
 

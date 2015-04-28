@@ -17,7 +17,7 @@ connector_t connector_create(int fd, worker_t pworker, int type, char *ip, int p
 
     if (pconn == NULL)
     {
-        print_log(LOG_TYPE_ERR, "connector malloc error. errno %d ", errno);
+        print_log(LOG_TYPE_ERROR, "connector malloc error. errno %d ", errno);
         return NULL;
     }
 
@@ -50,8 +50,6 @@ int connector_read(connector_t pconn, int events)
     if (pconn->sockfd == -1)
         return -1;
 
-    print_log(LOG_TYPE_DEBUG, "connector_read");
-
     while (1)
     {
         writable = buffer_writable(pconn->preadbuf);
@@ -61,8 +59,6 @@ int connector_read(connector_t pconn, int events)
         vec[1].iov_base = exbuf;
         vec[1].iov_len = sizeof(exbuf);
         ret = readv(pconn->sockfd, vec, 2);
-
-        print_log(LOG_TYPE_DEBUG, "ret is %d, %s", ret, vec[0].iov_base);
 
         if (ret < 0)
         {

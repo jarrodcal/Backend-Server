@@ -9,7 +9,7 @@ master_t master_create()
 
     if (pmaster == NULL)
     {
-        print_log(LOG_TYPE_ERR, "malloc master error\n");
+        print_log(LOG_TYPE_ERROR, "malloc master error\n");
         return NULL;
     }
 
@@ -63,7 +63,7 @@ void master_loop(master_t pmaster)
             if (errno == EINTR)
                 continue;
 
-            print_log(LOG_TYPE_ERR, "epoll_wait error, epfd = %d, errno = %d", pmaster->epfd, errno);
+            print_log(LOG_TYPE_ERROR, "epoll_wait error, epfd = %d, errno = %d", pmaster->epfd, errno);
             break;
         }
 
@@ -74,7 +74,7 @@ void master_loop(master_t pmaster)
             if (sockfd == pmaster->listenfd)
                 fs_accept(pmaster);
             else
-                print_log(LOG_TYPE_ERR, "Master get non listen socket");
+                print_log(LOG_TYPE_ERROR, "Master get non listen socket");
         }
     }
 }

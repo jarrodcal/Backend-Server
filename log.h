@@ -16,7 +16,7 @@ enum log_type
 {
     LOG_TYPE_RUN,
     LOG_TYPE_DEBUG,
-    LOG_TYPE_ERR,
+    LOG_TYPE_ERROR,
     LOG_TYPE_STATUS,
     LOG_TYPE_MAX
 };

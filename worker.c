@@ -9,7 +9,7 @@ worker_t worker_create()
 
     if (pworker == NULL)
     {
-        print_log(LOG_TYPE_ERR, "malloc worker error\n");
+        print_log(LOG_TYPE_ERROR, "malloc worker error\n");
         return NULL;
     }
 
@@ -41,8 +41,6 @@ void worker_close(worker_t pworker)
 
 static void connect_redis_done(connector_t pconredis)
 {
-    print_log(LOG_TYPE_DEBUG, "connect_redis_done");
-
     int error = 0;
     socklen_t len = sizeof(int);
 
@@ -57,7 +55,7 @@ static void connect_redis_done(connector_t pconredis)
         else
         {
             connector_close(pconredis);
-            print_log(LOG_TYPE_ERR, "connect redis error, ip %s, port %d, file = %s, line = %d", pconredis->ip, pconredis->port, __FILE__, __LINE__);
+            print_log(LOG_TYPE_ERROR, "connect redis error, ip %s, port %d, file = %s, line = %d", pconredis->ip, pconredis->port, __FILE__, __LINE__);
         }
     }
 }
@@ -71,7 +69,7 @@ static void reids_heartbeat(connector_t pconredis)
 
     if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
     {
-        print_log(LOG_TYPE_ERR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
         return;
     }
 
@@ -88,7 +86,7 @@ static void connect_redis(connector_t pconredis)
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        print_log(LOG_TYPE_ERR, "socket, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "socket, file = %s, line = %d", __FILE__, __LINE__);
         return;
     }
 
@@ -103,7 +101,7 @@ static void connect_redis(connector_t pconredis)
     if (inet_pton(AF_INET, pconredis->ip, &redis_addr.sin_addr) < 0)
     {
         close(sockfd);
-        print_log(LOG_TYPE_ERR, "inet_pton, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "inet_pton, file = %s, line = %d", __FILE__, __LINE__);
         return;
     }
 
@@ -124,7 +122,7 @@ static void connect_redis(connector_t pconredis)
     else
     {
         close(sockfd);
-        print_log(LOG_TYPE_ERR, "connect error, file = %s, line = %d", __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "connect error, file = %s, line = %d", __FILE__, __LINE__);
     }
 }
 
@@ -162,7 +160,7 @@ void * worker_loop(void *param)
             if (errno == EINTR)
                 continue;
 
-            print_log(LOG_TYPE_ERR, "worker epoll_wait error, epfd = %d, errno = %d", pworker->epfd, errno);
+            print_log(LOG_TYPE_ERROR, "worker epoll_wait error, epfd = %d, errno = %d", pworker->epfd, errno);
             break;
         }
 
@@ -217,7 +215,7 @@ void create_worker_system(int count)
 
         if (pthread_create(&tid, &attr, worker_loop, (void *)g_ppworker[i]) != 0)
         {
-            print_log(LOG_TYPE_ERR, "create work thread error");
+            print_log(LOG_TYPE_ERROR, "create work thread error");
             pthread_attr_destroy(&attr);
             return;
         }
@@ -266,17 +264,14 @@ void channel_handle_client_read(connector_t pconn, int event)
             buffer_read(pconn->preadbuf, len, TRUE);
             memcpy(pconn->uid, data, len);
 
-            print_log(LOG_TYPE_DEBUG, "Read msg %s", data);
+            print_log(LOG_TYPE_DEBUG, "Read From Client %s", data);
 
             int len2 = sizeof(connector_t);
-            ht_insert(pconn->pworker->pht, data, len+1, pconn, len2);
-
-            print_log(LOG_TYPE_DEBUG, "insert key is %s, len is %d", data, len);
+            ht_insert(pconn->pworker->pht, data, len+1, pconn, len2+1);
 
             context_t pcontext = (context_t)malloc(sizeof(context));
             memcpy(pcontext->uid, data, len);
             list_push_tail(pconn->pworker->plist, pcontext);
-            print_log(LOG_TYPE_DEBUG, "list head val is %s", (char *)(pconn->pworker->plist->head->value));
 
             char *key = "contact_upload_9";
             char *field = data;
@@ -284,11 +279,9 @@ void channel_handle_client_read(connector_t pconn, int event)
 
             if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
             {
-                print_log(LOG_TYPE_ERR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
+                print_log(LOG_TYPE_ERROR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
                 return;
             }
-
-            print_log(LOG_TYPE_DEBUG, "hget %s %s ", key, field);
 
             len = strlen(cmd);
 
@@ -299,7 +292,7 @@ void channel_handle_client_read(connector_t pconn, int event)
             }
             else
             {
-                print_log(LOG_TYPE_DEBUG, "Redis not run");
+                print_log(LOG_TYPE_ERROR, "Redis not run");
             }
         }
     }
@@ -312,18 +305,17 @@ void channel_handle_redis_read(connector_t pconn, int event)
     if (buffer_readable(pconn->preadbuf) > 0)
     {
         char *origindata = buffer_get_read(pconn->preadbuf);
-        print_log(LOG_TYPE_DEBUG, "Msg is %s", origindata);
-        int originlen = strlen(origindata);
-        buffer_read(pconn->preadbuf, originlen, TRUE);
+        print_log(LOG_TYPE_DEBUG, "Read From Redis %s", origindata);
 
-        char *analysedata = get_analyse_data(origindata);
-        print_log(LOG_TYPE_DEBUG, "analysedata is %s", analysedata);
+        char analysedata[100] = {0};
+        int originlen = get_analyse_data(origindata, analysedata);
+        buffer_read(pconn->preadbuf, originlen, TRUE);
 
         size_t value_size;
 
         //多级指向要付个值且先判断下..... if == NULL
         context_t pcontext = (context_t)pconn->pworker->plist->head->value;
-        print_log(LOG_TYPE_DEBUG, "plist value is %s\n", pcontext->uid);
+        print_log(LOG_TYPE_DEBUG, "List Head Uid %s\n", pcontext->uid);
         char key[32] = {0};
         memcpy(key, pcontext->uid, strlen(pcontext->uid));
 
@@ -331,33 +323,30 @@ void channel_handle_redis_read(connector_t pconn, int event)
         list_pop_head(pconn->pworker->plist);
 
         int len = strlen(key);
-        print_log(LOG_TYPE_DEBUG, "key is %s, len is %d", key, len);
         connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len+1, &value_size);
 
+        //只存储一次连接
         if (pclientcon)
         {
-            print_log(LOG_TYPE_DEBUG, "In hash table ip %s, port %d, uid %s", pclientcon->ip, pclientcon->port, pclientcon->uid);
-
-            //只存储一次连接
             ht_remove(pconn->pworker->pht, key, len+1);
-        }
 
-        if (analysedata && pclientcon)
-        {
-            char senddata[100] = {0};
-            memcpy(senddata, key, len);
-            memcpy(senddata+len, "$", 1);
+            if (strlen(analysedata) > 0)
+            {
+                char senddata[100] = {0};
+                memcpy(senddata, key, len);
+                memcpy(senddata+len, "$", 1);
 
-            len = strlen(senddata);
-            int size = strlen(analysedata);
-            memcpy(senddata+len, analysedata, size);
+                len = strlen(senddata);
+                int size = strlen(analysedata);
+                memcpy(senddata+len, analysedata, size);
 
-            len = strlen(senddata) + 1;
+                len = strlen(senddata) + 1;
 
-            print_log(LOG_TYPE_DEBUG, "send client %s", senddata);
+                print_log(LOG_TYPE_DEBUG, "Send Client %s", senddata);
 
-            buffer_write(pclientcon->pwritebuf, senddata, len);
-            connector_write(pclientcon);
+                buffer_write(pclientcon->pwritebuf, senddata, len);
+                connector_write(pclientcon);    
+            }
         }
     }
 }

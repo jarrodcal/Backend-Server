@@ -9,7 +9,7 @@ buffer_t buffer_create(void* conn, size_t default_size)
 
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "create buff malloc is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "create buff malloc is error, errno = %d", errno);
         return NULL;
     }
 
@@ -22,7 +22,7 @@ buffer_t buffer_create(void* conn, size_t default_size)
 
     if (bf->_data == NULL)
     {
-        print_log(LOG_TYPE_ERR, "create buff data malloc is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "create buff data malloc is error, errno = %d", errno);
         return NULL;
     }
 
@@ -57,7 +57,7 @@ char* buffer_get_write(buffer_t bf)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "get write buf is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "get write buf is error, errno = %d", errno);
 
         return NULL;
     }
@@ -69,7 +69,7 @@ char* buffer_get_read(buffer_t bf)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "get read buf is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "get read buf is error, errno = %d", errno);
 
         return NULL;
     }
@@ -81,7 +81,7 @@ size_t buffer_writable(buffer_t bf)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "get write buf is error,  errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "get write buf is error,  errno = %d", errno);
         return 0;
     }
 
@@ -92,7 +92,7 @@ size_t buffer_readable(buffer_t bf)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "get write buf is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "get write buf is error, errno = %d", errno);
         return 0;
     }
 
@@ -103,7 +103,7 @@ void buffer_read(buffer_t bf, size_t size, BOOL breset)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "get buffer readed is error,  errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "get buffer readed is error,  errno = %d", errno);
 
         return;
     }
@@ -122,7 +122,7 @@ void buffer_write(buffer_t bf, char* pdata, size_t size)
 {
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "buffer write is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "buffer write is error, errno = %d", errno);
         return;
     }
 
@@ -148,7 +148,7 @@ static void buffer_expand(buffer_t bf, size_t size)
 
     if (p == NULL)
     {
-        print_log(LOG_TYPE_ERR, "buffer expand is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "buffer expand is error, errno = %d", errno);
         return;
     }
 
@@ -162,7 +162,7 @@ static void buffer_shrink(buffer_t bf)
 
     if (bf == NULL)
     {
-        print_log(LOG_TYPE_ERR, "buffer shrink is error, errno = %d", errno);
+        print_log(LOG_TYPE_ERROR, "buffer shrink is error, errno = %d", errno);
         return;
     }
 
@@ -173,7 +173,7 @@ static void buffer_shrink(buffer_t bf)
 
         if (tmp == NULL)
         {
-            print_log(LOG_TYPE_ERR, "buf realloc is error, errno = %d", errno);
+            print_log(LOG_TYPE_ERROR, "buf realloc is error, errno = %d", errno);
             return;
         }
 

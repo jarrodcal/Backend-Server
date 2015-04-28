@@ -12,4 +12,4 @@ typedef struct context context;
 typedef struct context * context_t;
 
 int make_cmd(char *buffer, int max_len, int count, ...);
-char *get_analyse_data(char *origindata);
+int get_analyse_data(char *origindata, char *gdids);
