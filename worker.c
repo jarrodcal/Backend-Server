@@ -315,7 +315,7 @@ void channel_handle_redis_read(connector_t pconn, int event)
 
         //多级指向要付个值且先判断下..... if == NULL
         context_t pcontext = (context_t)pconn->pworker->plist->head->value;
-        print_log(LOG_TYPE_DEBUG, "List Head Uid %s\n", pcontext->uid);
+        print_log(LOG_TYPE_DEBUG, "List Head Uid %s", pcontext->uid);
         char key[32] = {0};
         memcpy(key, pcontext->uid, strlen(pcontext->uid));
 
@@ -345,7 +345,7 @@ void channel_handle_redis_read(connector_t pconn, int event)
                 print_log(LOG_TYPE_DEBUG, "Send Client %s", senddata);
 
                 buffer_write(pclientcon->pwritebuf, senddata, len);
-                connector_write(pclientcon);    
+                connector_write(pclientcon);
             }
         }
     }
