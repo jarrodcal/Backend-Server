@@ -99,6 +99,7 @@ size_t buffer_readable(buffer_t bf)
     return bf->_write_index - bf->_read_index;
 }
 
+//将缓冲区读写游标放到初始位置，但缓冲区中的内容没有清空
 void buffer_read(buffer_t bf, size_t size, BOOL breset)
 {
     if (bf == NULL)

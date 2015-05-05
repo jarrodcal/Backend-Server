@@ -1,3 +1,9 @@
+/********************************
+@功能: 客户端输入uid，服务端输出uid$gdid
+@流程: 每一次客户端请求创建一个连接，并保存在哈希表中，构造reids协议异步请求，获得数据后返回给客户端
+@例子：输入：123249943, 输出：123249943$adfa899ad2，返回uid同时是为了便于客户端进行数据校验
+**********************************/
+
 #include "worker.h"
 
 extern worker ** g_ppworker;
@@ -12,8 +18,7 @@ worker_t worker_create()
         print_log(LOG_TYPE_ERROR, "malloc worker error\n");
         return NULL;
     }
-
-    pworker->tid = pthread_self();
+    
     pworker->total_count = 0;
     pworker->closed_count = 0;
     pworker->neterr_count = 0;
@@ -63,15 +68,18 @@ static void connect_redis_done(connector_t pconredis)
 static void reids_heartbeat(connector_t pconredis)
 {
     //失败的情况下设置连接状态pconredis->state == CONN_STATE_CLOSED;
-    char *key = "contact_upload_9";
-    char *field = "1984467097";
+    char *key = "hbkey";
     char cmd[REDIS_CMD_LEN] = {'\0'};
 
-    if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
+    if (make_cmd(cmd, REDIS_CMD_LEN, 2, "get", key) < 0)
     {
-        print_log(LOG_TYPE_ERROR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
+        print_log(LOG_TYPE_ERROR, "get %s error, file = %s, line = %d", key, __FILE__, __LINE__);
         return;
     }
+
+    context_t pcontext = (context_t)malloc(sizeof(context));
+    memcpy(pcontext->uid, key, strlen(key));
+    list_push_tail(pconredis->pworker->plist, pcontext);
 
     int len = strlen(cmd);
     buffer_write(pconredis->pwritebuf, cmd, len);
@@ -132,10 +140,10 @@ void handle_time_check(worker_t pworker)
     connector_t pconredis = pworker->redis;
 
     if (pconredis->state == CONN_STATE_NONE || pconredis->state == CONN_STATE_CLOSED)
-        connect_redis(pconredis);/*
+        connect_redis(pconredis);
     else
         reids_heartbeat(pconredis);
-    */
+
     //定时查看哈希表中的连接，超过一定时间，如果对方没有关闭，需要关闭
 }
 
@@ -144,6 +152,7 @@ void handle_time_check(worker_t pworker)
 void * worker_loop(void *param)
 {
     worker_t pworker = (worker_t)param;
+    pworker->tid = pthread_self();
 
     int nfds = 0;
     int timeout = 100;
@@ -264,16 +273,26 @@ void channel_handle_client_read(connector_t pconn, int event)
             buffer_read(pconn->preadbuf, len, TRUE);
             memcpy(pconn->uid, data, len);
 
-            print_log(LOG_TYPE_DEBUG, "Read From Client %s", data);
+            print_log(LOG_TYPE_DEBUG, "Read From Client %s, len is %d", data, len);
 
+            //保存连接到哈希表
             int len2 = sizeof(connector_t);
             ht_insert(pconn->pworker->pht, data, len+1, pconn, len2+1);
 
+            //将请求放到链表中
             context_t pcontext = (context_t)malloc(sizeof(context));
+            memset(pcontext, 0, sizeof(context));
             memcpy(pcontext->uid, data, len);
             list_push_tail(pconn->pworker->plist, pcontext);
 
-            char *key = "contact_upload_9";
+            print_log(LOG_TYPE_DEBUG, "Hash table key is  %s", pcontext->uid);;
+
+            char *msg = data;
+            char index[2] = {0};
+            memcpy(index, msg+len-2, 1);
+            char key[18] = {0};
+            snprintf(key, 18, "contact_upload_%s", index);
+
             char *field = data;
             char cmd[REDIS_CMD_LEN] = {'\0'};
 
@@ -305,7 +324,9 @@ void channel_handle_redis_read(connector_t pconn, int event)
     if (buffer_readable(pconn->preadbuf) > 0)
     {
         char *origindata = buffer_get_read(pconn->preadbuf);
-        print_log(LOG_TYPE_DEBUG, "Read From Redis %s", origindata);
+
+        if (strstr(origindata, "hbval") == NULL)
+            print_log(LOG_TYPE_DEBUG, "Read From Redis %s", origindata);
 
         char analysedata[100] = {0};
         int originlen = get_analyse_data(origindata, analysedata);
@@ -314,8 +335,12 @@ void channel_handle_redis_read(connector_t pconn, int event)
         size_t value_size;
 
         //多级指向要付个值且先判断下..... if == NULL
+        //取出链表请求的头元素, 找到对应请求的uid
         context_t pcontext = (context_t)pconn->pworker->plist->head->value;
-        print_log(LOG_TYPE_DEBUG, "List Head Uid %s", pcontext->uid);
+
+        if (strstr(pcontext->uid, "hbkey") == NULL)
+            print_log(LOG_TYPE_DEBUG, "List Head Uid %s", pcontext->uid);
+
         char key[32] = {0};
         memcpy(key, pcontext->uid, strlen(pcontext->uid));
 
@@ -345,8 +370,9 @@ void channel_handle_redis_read(connector_t pconn, int event)
                 print_log(LOG_TYPE_DEBUG, "Send Client %s", senddata);
 
                 buffer_write(pclientcon->pwritebuf, senddata, len);
-                connector_write(pclientcon);
             }
+            
+            connector_write(pclientcon);
         }
     }
 }

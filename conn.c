@@ -47,12 +47,6 @@ int connector_read(connector_t pconn, int events)
     char exbuf[65536] = {0};
     struct iovec vec[2];
 
-    if (pconn == NULL)
-    {
-        print_log(LOG_TYPE_ERROR, "pcon null");
-        return -1;
-    }
-
     if (pconn->sockfd == -1)
         return -1;
 
@@ -122,7 +116,7 @@ int connector_write(connector_t pconn)
 
     if (pconn == NULL)
     {
-        print_log(LOG_TYPE_ERROR, "pcon null");
+        print_log(LOG_TYPE_ERROR, "connector null. errno %d ", errno);
         return -1;
     }
 
