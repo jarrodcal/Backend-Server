@@ -31,7 +31,7 @@ static int setlimit()
     return 0;
 }
 
-void echo_resource_init()
+void worker_resource_init()
 {
     g_ppworker = (worker **)malloc(sizeof(worker *) * g_workcount);
 
@@ -72,7 +72,7 @@ int main()
     pmaster->listenfd = listenfd;
     master_add_fd(pmaster, listenfd, EPOLL_CTL_ADD);
 
-    echo_resource_init();
+    worker_resource_init();
     create_status_system(pmaster);
     create_worker_system(g_workcount);
 

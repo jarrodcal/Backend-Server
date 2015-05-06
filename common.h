@@ -48,6 +48,9 @@ typedef int BOOL;
 #define REDIS_PORT 29023
 #define REDIS_CMD_LEN 128
 
+#define REDIS_HBKEY "hbkey"
+#define REDIS_HBVAL "hbval"
+
 void setnonblock(int sock);
 void setreuse(int sock);
 void set_tcp_nodelay(int sock);

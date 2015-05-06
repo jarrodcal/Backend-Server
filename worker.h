@@ -9,15 +9,10 @@
 #include "redis.h"
 #include "list.h"
 
-//哈希表存放建立起的连接，以uid为key，value为连接指针
-//redis变量为业务上和资源的长连接
-
 struct worker
 {
     pthread_t tid;
     int epfd;
-    int waitfd_count;
-    int waitfd[WAITFD_COUNT];
     int total_count;
     int closed_count;
     int neterr_count;
@@ -29,11 +24,19 @@ struct worker
 typedef struct worker worker;
 typedef struct worker * worker_t;
 
-worker_t worker_create();
-void worker_close(worker_t pworker);
-void *worker_loop(void *param);
-void handle_time_check(worker_t pworker);
+struct message
+{
+    char uid[UID_MAX_LEN];
+    int len;
+};
+
+typedef struct message message;
+typedef struct message * message_t;
+
 void create_worker_system(int count);
+worker_t worker_create();
+void *worker_loop(void *param);
+void worker_close(worker_t pworker);
 
 void worker_handle_read(connector_t pconn, int event);
 void worker_handle_write(connector_t pconn);

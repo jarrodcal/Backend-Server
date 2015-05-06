@@ -27,25 +27,22 @@ void master_close(master_t pmaster)
 {
     if (pmaster == NULL)
         return;
-
-    //必须先关闭?
+    
     if (pmaster->listenfd)
         close(pmaster->listenfd);
 
     if (pmaster->epfd)
         close(pmaster->epfd);
 
-    free(pmaster);
-    pmaster = NULL;
+    MEM_FREE(pmaster);
 }
 
-/****
+/**************************
 1. EPOLLIN 新连接到来或者服务端内核层面收到数据通知
 2. EPOLLOUT 服务端内核层面可以写通知
 3. EPOLLERR/EPOLLHUP 读写非工作状态下的sockfd，客户端非正常关闭，断连接
 4. EPOLLRDHUP 客户端正常关闭(close || ctrl+c)， 同时也会触发epolln事件
-***/
-
+************************/
 void master_loop(master_t pmaster)
 {
     int nfds = 0;
@@ -88,6 +85,7 @@ void master_add_fd(master_t pmaster, int fd, int op)
     epoll_ctl(pmaster->epfd, op, fd, &ev);
 }
 
+//选择一个工作线程，量小可以随机，量大后需要按照一定的负载策略
 static worker_t find_worker()
 {
     struct timespec timeval={0, 0};
@@ -96,7 +94,7 @@ static worker_t find_worker()
     srand(timeval.tv_nsec);
     int index = rand() % 8;
 
-    /*
+    /***
     int i = 0;
     int min = 0;
     int cur = 0;
@@ -110,7 +108,7 @@ static worker_t find_worker()
             index = i;
     }
 
-    */
+    ***/
 
     return g_ppworker[index];
 }
@@ -134,7 +132,6 @@ void fs_accept(master_t pmaster)
         }
         
         pmaster->accept_count++;
-        
         worker_t pworker = find_worker();
 
         //TODO放在工作线程中去处理

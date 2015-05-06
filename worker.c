@@ -1,9 +1,3 @@
-/********************************
-@功能: 客户端输入uid，服务端输出uid$gdid
-@流程: 每一次客户端请求创建一个连接，并保存在哈希表中，构造reids协议异步请求，获得数据后返回给客户端
-@例子：输入：123249943, 输出：123249943$adfa899ad2，返回uid同时是为了便于客户端进行数据校验
-**********************************/
-
 #include "worker.h"
 
 extern worker ** g_ppworker;
@@ -27,8 +21,7 @@ worker_t worker_create()
     hash_table *ht = (hash_table *)malloc(sizeof(hash_table));
     pworker->pht = ht;
     ht_init(pworker->pht, HT_VALUE_CONST, 0.05);
-
-    //初始fd为-1，表示资源的长连接未建立或者资源掉线
+    
     pworker->redis = connector_create(INVALID_ID, pworker, CONN_TYPE_REDIS, REDIS_IP, REDIS_PORT);
     pworker->plist = list_create();
 
@@ -37,11 +30,9 @@ worker_t worker_create()
 
 void worker_close(worker_t pworker)
 {
-    //redis连接关闭
-    //hash表的资源释放
-    //连接关闭
-    //ht_destroy
-    //list
+    connector_close(pworker->redis);
+    ht_destroy(pworker->pht);
+    list_free(pworker->plist);
 }
 
 static void connect_redis_done(connector_t pconredis)
@@ -67,19 +58,14 @@ static void connect_redis_done(connector_t pconredis)
 
 static void reids_heartbeat(connector_t pconredis)
 {
-    //失败的情况下设置连接状态pconredis->state == CONN_STATE_CLOSED;
-    char *key = "hbkey";
-    char cmd[REDIS_CMD_LEN] = {'\0'};
+    char *key = REDIS_HBKEY;
+    char cmd[REDIS_CMD_LEN] = {0};
 
     if (make_cmd(cmd, REDIS_CMD_LEN, 2, "get", key) < 0)
     {
         print_log(LOG_TYPE_ERROR, "get %s error, file = %s, line = %d", key, __FILE__, __LINE__);
         return;
     }
-
-    context_t pcontext = (context_t)malloc(sizeof(context));
-    memcpy(pcontext->uid, key, strlen(key));
-    list_push_tail(pconredis->pworker->plist, pcontext);
 
     int len = strlen(cmd);
     buffer_write(pconredis->pwritebuf, cmd, len);
@@ -134,7 +120,7 @@ static void connect_redis(connector_t pconredis)
     }
 }
 
-//资源的定时检查, 断开后会重新连接
+//定时检查资源的长连接
 void handle_time_check(worker_t pworker)
 {
     connector_t pconredis = pworker->redis;
@@ -143,8 +129,6 @@ void handle_time_check(worker_t pworker)
         connect_redis(pconredis);
     else
         reids_heartbeat(pconredis);
-
-    //定时查看哈希表中的连接，超过一定时间，如果对方没有关闭，需要关闭
 }
 
 
@@ -187,19 +171,26 @@ void * worker_loop(void *param)
             }
             if ((evs[i].events & EPOLLERR) || (evs[i].events & EPOLLHUP))
             {
-                print_log(LOG_TYPE_DEBUG, "EPOLLERR or EPOLLHUP occure");
+                print_log(LOG_TYPE_DEBUG, "EPOLLERR Or EPOLLHUP Event Occure");
                 pworker->neterr_count++;
 
                 connector_close(pconn);
             }
             if (evs[i].events & EPOLLRDHUP)
             {
-                //可以在应用层面（写缓冲区）检查数据是否已经完全发出，server发出去，系统层面会在close后根据SO_LINGER进行相关的处理
-                print_log(LOG_TYPE_DEBUG, "EPOLLRDHUP occure");
+                connector_unsig_read(pconn);
+                connector_unsig_rdhup(pconn);
+
+                //可以在应用层面（写缓冲区）检查数据是否已经完全发出，server发出去，系统层面会在close后根据SO_LINGER的设置处理
+                print_log(LOG_TYPE_DEBUG, "EPOLLRDHUP Event Occure");
                 pworker->closed_count++;
 
-                connector_close(pconn);
+                if (buffer_readable(pconn->pwritebuf) > 0)
+                    connector_write(pconn);
+                else
+                    connector_close(pconn);
             }
+
         }
 
         handle_time_check(pworker);
@@ -261,117 +252,146 @@ void worker_handle_write(connector_t pconn)
     }
 }
 
+static void get_request_str(char *uid, char *cmd)
+{
+    int len = strlen(uid);
+    char *msg = uid;
+    char index[2] = {0};
+    memcpy(index, msg+len-2, 1);
+    char key[18] = {0};
+    snprintf(key, 18, "contact_upload_%s", index);
+
+    char *field = uid;
+
+    if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
+    {
+        print_log(LOG_TYPE_ERROR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
+        return;
+    }
+}
+
+//$10\r\n1984467097
+static int get_client_msg(char *clientdata, message_t msg)
+{
+    char ch = *clientdata;
+
+    if (ch == BULKREPLY)
+    {
+        char *r = strchr(clientdata, '\r');
+        int length = r - clientdata - 1;
+        char mm[10] = {0};
+        memcpy(mm, clientdata+1, length);
+        msg->len = atoi(mm);
+        
+        memcpy(msg->uid, r+2, msg->len);
+        int alllen = msg->len + strlen(mm) + 3;
+
+        print_log(LOG_TYPE_DEBUG, "Uid %s, Len %d", msg->uid, msg->len);
+
+        return alllen;
+    }
+
+    return 0;
+}
+
 void channel_handle_client_read(connector_t pconn, int event)
 {
     if (connector_read(pconn, event) > 0)
     {
-        //进行消息解析和业务处理
-        if (buffer_readable(pconn->preadbuf) > 0)
+        char *val = buffer_get_read(pconn->preadbuf);
+        message_t pmsg = (message_t)malloc(sizeof(message));
+        memset(pmsg, 0, sizeof(pmsg));
+        size_t len1 = get_client_msg(val, pmsg);
+
+        if (len1 == 0)
         {
-            char *data = buffer_get_read(pconn->preadbuf);
-            size_t len = strlen(data);
-            buffer_read(pconn->preadbuf, len, TRUE);
-            memcpy(pconn->uid, data, len);
-
-            print_log(LOG_TYPE_DEBUG, "Read From Client %s, len is %d", data, len);
-
-            //保存连接到哈希表
-            int len2 = sizeof(connector_t);
-            ht_insert(pconn->pworker->pht, data, len+1, pconn, len2+1);
-
-            //将请求放到链表中
-            context_t pcontext = (context_t)malloc(sizeof(context));
-            memset(pcontext, 0, sizeof(context));
-            memcpy(pcontext->uid, data, len);
-            list_push_tail(pconn->pworker->plist, pcontext);
-
-            print_log(LOG_TYPE_DEBUG, "Hash table key is  %s", pcontext->uid);;
-
-            char *msg = data;
-            char index[2] = {0};
-            memcpy(index, msg+len-2, 1);
-            char key[18] = {0};
-            snprintf(key, 18, "contact_upload_%s", index);
-
-            char *field = data;
-            char cmd[REDIS_CMD_LEN] = {'\0'};
-
-            if (make_cmd(cmd, REDIS_CMD_LEN, 3, "hget", key, field) < 0)
-            {
-                print_log(LOG_TYPE_ERROR, "hget %s %s error, file = %s, line = %d", key, field, __FILE__, __LINE__);
-                return;
-            }
-
-            len = strlen(cmd);
-
-            if (pconn->pworker->redis->state == CONN_STATE_RUN)
-            {
-                buffer_write(pconn->pworker->redis->pwritebuf, cmd, len);
-                connector_write(pconn->pworker->redis);
-            }
-            else
-            {
-                print_log(LOG_TYPE_ERROR, "Redis not run");
-            }
+            print_log(LOG_TYPE_ERROR, "Read Client Msg Error %s", val);
+            free(pmsg);
+            return;
         }
+
+        char data[20] = {0};
+        memcpy(data, pmsg->uid, pmsg->len);
+        buffer_read(pconn->preadbuf, len1, TRUE);
+
+        memcpy(pconn->uid, data, pmsg->len);
+        
+        int len2 = sizeof(connector_t);
+        ht_insert(pconn->pworker->pht, data,  (pmsg->len)+1, pconn, len2+1);
+
+        context_t pcontext = (context_t)malloc(sizeof(context));
+        memset(pcontext, 0, sizeof(context));
+        memcpy(pcontext->data, data, pmsg->len);
+        list_push_tail(pconn->pworker->plist, pcontext);
+
+        //print_log(LOG_TYPE_DEBUG, "Hash key %s, Len %d", pcontext->data, pmsg->len);
+
+        char cmd[REDIS_CMD_LEN] = {'\0'};
+        get_request_str(data, cmd);
+
+        int len = strlen(cmd);
+
+        if (pconn->pworker->redis->state == CONN_STATE_RUN)
+        {
+            buffer_write(pconn->pworker->redis->pwritebuf, cmd, len);
+            connector_write(pconn->pworker->redis);
+        }
+        else
+        {
+            print_log(LOG_TYPE_ERROR, "Redis not run");
+        }
+
+        free(pmsg);
     }
+}
+
+static void get_response_str(char *data, char *uid, char *gdid)
+{
+    char *send = data;
+    int len1 = strlen(uid);
+    memcpy(send, uid, len1);
+    memcpy(send+len1, "$", 1);
+
+    int len2 = strlen(send);
+    int len3 = strlen(gdid);
+    memcpy(send+len2, gdid, len3);
+
+    print_log(LOG_TYPE_DEBUG, "Send Client %s", data);
 }
 
 void channel_handle_redis_read(connector_t pconn, int event)
 {
-    connector_read(pconn, event);
-
-    if (buffer_readable(pconn->preadbuf) > 0)
+    if (connector_read(pconn, event) > 0)
     {
-        char *origindata = buffer_get_read(pconn->preadbuf);
-
-        if (strstr(origindata, "hbval") == NULL)
-            print_log(LOG_TYPE_DEBUG, "Read From Redis %s", origindata);
-
-        char analysedata[100] = {0};
-        int originlen = get_analyse_data(origindata, analysedata);
+        char *origin = buffer_get_read(pconn->preadbuf);
+        char analyse[100] = {0};
+        int originlen = get_analyse_data(origin, analyse);
         buffer_read(pconn->preadbuf, originlen, TRUE);
+        
+        if (strcmp(analyse, REDIS_HBVAL) == 0)
+            return;
 
-        size_t value_size;
-
-        //多级指向要付个值且先判断下..... if == NULL
-        //取出链表请求的头元素, 找到对应请求的uid
         context_t pcontext = (context_t)pconn->pworker->plist->head->value;
+        //print_log(LOG_TYPE_DEBUG, "Redis Read %s List Head Uid %s", analyse, pcontext->data);
 
-        if (strstr(pcontext->uid, "hbkey") == NULL)
-            print_log(LOG_TYPE_DEBUG, "List Head Uid %s", pcontext->uid);
-
-        char key[32] = {0};
-        memcpy(key, pcontext->uid, strlen(pcontext->uid));
-
+        char key[UID_MAX_LEN] = {0};
+        memcpy(key, pcontext->data, strlen(pcontext->data));
         MEM_FREE(pcontext);
         list_pop_head(pconn->pworker->plist);
 
-        int len = strlen(key);
-        connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len+1, &value_size);
-
-        //只存储一次连接
+        size_t len1 = strlen(key);
+        size_t len2 = 0;
+        connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len1+1, &len2);
+        
         if (pclientcon)
         {
-            ht_remove(pconn->pworker->pht, key, len+1);
+            ht_remove(pconn->pworker->pht, key, len1+1);
 
-            if (strlen(analysedata) > 0)
-            {
-                char senddata[100] = {0};
-                memcpy(senddata, key, len);
-                memcpy(senddata+len, "$", 1);
-
-                len = strlen(senddata);
-                int size = strlen(analysedata);
-                memcpy(senddata+len, analysedata, size);
-
-                len = strlen(senddata) + 1;
-
-                print_log(LOG_TYPE_DEBUG, "Send Client %s", senddata);
-
-                buffer_write(pclientcon->pwritebuf, senddata, len);
-            }
+            char val[100] = {0};
+            get_response_str(val, key, analyse);
+            size_t size = strlen(val);
             
+            buffer_write(pclientcon->pwritebuf, val, size);
             connector_write(pclientcon);
         }
     }
@@ -385,9 +405,8 @@ void channel_handle_client_write(connector_t pconn)
 
 void channel_handle_redis_write(connector_t pconn)
 {
-    //以非阻塞模式设置套接口，去connect Redis，返回的套接字是可写状态，此时Epoll返回写通知事件，可能是有数据也可能是连接状态的返回。
-    //通过con的state判断是哪种情况，通过调用getsockopt来得到返回的连接状态（连接成功和失败都会返回可写通知）
-
+    //以非阻塞模式设置套接口，去连接Redis，Epoll返回写通知事件，可能是有数据也可能是连接状态的返回。
+    //通过con的state判断是哪种情况，通过调用getsockopt来查看返回的连接状态（连接成功和失败都会返回可写通知）
     if (pconn->state == CONN_STATE_CONNECTING || pconn->state == CONN_STATE_CLOSED)
     {
         connect_redis_done(pconn);

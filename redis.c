@@ -24,17 +24,17 @@ int make_cmd(char *buffer, int max_len, int count, ...)
 }
 
 ////"$6\r\nfoobar\r\n"
-int get_analyse_data(char *origindata, char *gdid)
+int get_analyse_data(char *origin, char *gdid)
 {
-    char ch = *origindata;
-    char * data = origindata;
+    char ch = *origin;
+    char * data = origin;
     int len = 0;
     int alllen = 0;
 
     if (ch == BULKREPLY)
     {
-        char *r = strchr(origindata, '\r');
-        int length = r - origindata - 1;
+        char *r = strchr(origin, '\r');
+        int length = r - origin - 1;
         char mm[10] = {0};
         memcpy(mm, data+1, length);
         len = atoi(mm);
@@ -53,7 +53,7 @@ int get_analyse_data(char *origindata, char *gdid)
     else
     {
         memcpy(gdid, "Error", 2);
-        print_log(LOG_TYPE_DEBUG, "not BULKREPLY is  %s", origindata);
+        print_log(LOG_TYPE_DEBUG, "not BULKREPLY is  %s", origin);
     }
 
     return alllen;

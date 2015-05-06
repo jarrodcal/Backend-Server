@@ -5,7 +5,8 @@
 
 struct context
 {
-    char uid[UID_MAX_LEN];
+    char data[UID_MAX_LEN];
+    void *extra;
 };
 
 typedef struct context context;

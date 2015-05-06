@@ -17,7 +17,7 @@ list_t list_create()
     return plist;
 }
 
-void node_free(list_t plist)
+void list_free(list_t plist)
 {
     if (plist->len > 0)
         list_pop_head(plist);
