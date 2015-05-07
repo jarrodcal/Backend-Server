@@ -25,6 +25,10 @@ worker_t worker_create()
     pworker->redis = connector_create(INVALID_ID, pworker, CONN_TYPE_REDIS, REDIS_IP, REDIS_PORT);
     pworker->plist = list_create();
 
+    struct timeval tm_now;
+    gettimeofday(&tm_now, NULL);
+    pworker->ticktime = tm_now.tv_sec;
+
     return pworker;
 }
 
@@ -58,6 +62,14 @@ static void connect_redis_done(connector_t pconredis)
 
 static void reids_heartbeat(connector_t pconredis)
 {
+    struct timeval tm_now;
+    gettimeofday(&tm_now, NULL);
+
+    if ((tm_now.tv_sec - pconredis->pworker->ticktime) < REDIS_IDLETIME)
+        return;
+
+    pconredis->pworker->ticktime  = tm_now.tv_sec;
+
     char *key = REDIS_HBKEY;
     char cmd[REDIS_CMD_LEN] = {0};
 

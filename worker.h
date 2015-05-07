@@ -19,6 +19,7 @@ struct worker
     connector_t redis;
     hash_table *pht;
     list_t plist;
+    int ticktime;
 };
 
 typedef struct worker worker;
