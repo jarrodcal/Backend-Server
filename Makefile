@@ -1,5 +1,5 @@
 TARGET = server-demo
-OBJS = $(patsubst %.c,%.o,$(wildcard *.c))
+OBJS = $(patsubst %.c,%.o,$(wildcard *.c hash/*.c))
 CC = gcc
 LINK = gcc
 override CFLAGS = -Wall -D__WITH_MURMUR -O3 -g -lpthread -lrt

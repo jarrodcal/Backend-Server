@@ -5,7 +5,7 @@
 #include "log.h"
 #include "conn.h"
 #include "buffer.h"
-#include "hashtable.h"
+#include "hash/hashtable.h"
 #include "redis.h"
 #include "list.h"
 

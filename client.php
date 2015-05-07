@@ -23,7 +23,7 @@
 
         stream_socket_shutdown($socket);
         $end = microtime(true);
-        $used = round($end - $begin, 2);
+        $used = $end - $begin;
 
         echo $val . ' used ' . $used . "\n";
     }
