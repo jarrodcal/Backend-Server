@@ -114,12 +114,6 @@ int connector_write(connector_t pconn)
     int ret = 0;
     size_t readable = 0;
 
-    if (pconn == NULL)
-    {
-        print_log(LOG_TYPE_ERROR, "connector null. errno %d ", errno);
-        return -1;
-    }
-
     while (connector_writable(pconn))
     {
         readable = buffer_readable(pconn->pwritebuf);
@@ -145,11 +139,6 @@ int connector_write(connector_t pconn)
             if (ret < readable)
             {
                 connector_sig_write(pconn);
-            }
-            else
-            {
-                //connector_close(pconn);
-                //pconn->pworker->closed_count++;
             }
         }
     }

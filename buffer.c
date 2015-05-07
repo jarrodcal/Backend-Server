@@ -139,7 +139,7 @@ void buffer_writed(buffer_t bf, size_t size)
     bf->_write_index += size;   
 }
 
-//扩容
+//扩容, 容易内存泄露的一个地方
 static void buffer_expand(buffer_t bf, size_t size)
 {
     while (size > buffer_writable(bf))
