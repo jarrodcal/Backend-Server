@@ -54,7 +54,6 @@ static void connect_redis_done(connector_t pconredis)
         }
         else
         {
-            ????
             connector_close(pconredis);
             print_log(LOG_TYPE_ERROR, "connect redis error, ip %s, port %d, file = %s, line = %d", pconredis->ip, pconredis->port, __FILE__, __LINE__);
         }

@@ -48,6 +48,7 @@ typedef int BOOL;
 #define REDIS_PORT 29023
 #define REDIS_CMD_LEN 128
 #define REDIS_IDLETIME 270
+#define REDIS_RECONTIME 10
 
 #define REDIS_HBKEY "hbkey"
 #define REDIS_HBVAL "hbval"
