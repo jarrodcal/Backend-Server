@@ -12,7 +12,7 @@ worker_t worker_create()
         print_log(LOG_TYPE_ERROR, "malloc worker error\n");
         return NULL;
     }
-    
+
     pworker->total_count = 0;
     pworker->closed_count = 0;
     pworker->neterr_count = 0;
@@ -21,7 +21,7 @@ worker_t worker_create()
     hash_table *ht = (hash_table *)malloc(sizeof(hash_table));
     pworker->pht = ht;
     ht_init(pworker->pht, HT_VALUE_CONST, 0.05);
-    
+
     pworker->redis = connector_create(INVALID_ID, pworker, CONN_TYPE_REDIS, REDIS_IP, REDIS_PORT);
     pworker->plist = list_create();
 
@@ -294,7 +294,7 @@ static int get_client_msg(char *clientdata, message_t msg)
         char mm[10] = {0};
         memcpy(mm, clientdata+1, length);
         msg->len = atoi(mm);
-        
+
         memcpy(msg->uid, r+2, msg->len);
         int alllen = msg->len + strlen(mm) + 3;
 
@@ -327,9 +327,9 @@ void channel_handle_client_read(connector_t pconn, int event)
         buffer_read(pconn->preadbuf, len1, TRUE);
 
         memcpy(pconn->uid, data, pmsg->len);
-        
+
         int len2 = sizeof(connector_t);
-        ht_insert(pconn->pworker->pht, data,  (pmsg->len)+1, pconn, len2+1);
+        ht_insert(pconn->pworker->pht, data, (pmsg->len)+1, pconn, len2+1);
 
         context_t pcontext = (context_t)malloc(sizeof(context));
         memset(pcontext, 0, sizeof(context));
@@ -351,6 +351,9 @@ void channel_handle_client_read(connector_t pconn, int event)
         else
         {
             print_log(LOG_TYPE_ERROR, "Redis not run");
+            list_pop_head(pconn->pworker->plist);
+            ht_remove(pconn->pworker->pht, data, (pmsg->len)+1);
+            pconn->pworker->neterr_count++;
         }
 
         free(pmsg);
@@ -379,7 +382,7 @@ void channel_handle_redis_read(connector_t pconn, int event)
         char analyse[100] = {0};
         int originlen = get_analyse_data(origin, analyse);
         buffer_read(pconn->preadbuf, originlen, TRUE);
-        
+
         if (strcmp(analyse, REDIS_HBVAL) == 0)
             return;
 
@@ -394,7 +397,7 @@ void channel_handle_redis_read(connector_t pconn, int event)
         size_t len1 = strlen(key);
         size_t len2 = 0;
         connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len1+1, &len2);
-        
+
         if (pclientcon)
         {
             ht_remove(pconn->pworker->pht, key, len1+1);
@@ -402,7 +405,7 @@ void channel_handle_redis_read(connector_t pconn, int event)
             char val[100] = {0};
             get_response_str(val, key, analyse);
             size_t size = strlen(val);
-            
+
             buffer_write(pclientcon->pwritebuf, val, size);
             connector_write(pclientcon);
         }
