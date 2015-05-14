@@ -118,15 +118,18 @@ void print_log(enum log_type type, const char *format, ...)
         return;
 
     struct tm t_tm;
+    struct timeval now;
     time_t timer;
-    time(&timer);
+    gettimeofday(&now, NULL);
+    timer = (time_t)(now.tv_sec);
     localtime_r(&timer, &t_tm);
+    long int usec = now.tv_usec;
 
     int len;
     log_t plog;
     va_list args;
 
-    len = snprintf(fmt, LOG_FORMAT_LEN, "%04d-%02d-%02d %02d:%02d:%02d,%lu,%s\n", t_tm.tm_year + 1900, t_tm.tm_mon + 1, t_tm.tm_mday, t_tm.tm_hour, t_tm.tm_min, t_tm.tm_sec, (unsigned long) pthread_self(), format);
+    len = snprintf(fmt, LOG_FORMAT_LEN, "%04d-%02d-%02d %02d:%02d:%02d:%02ld,%lu,%s\n", t_tm.tm_year + 1900, t_tm.tm_mon + 1, t_tm.tm_mday, t_tm.tm_hour, t_tm.tm_min, t_tm.tm_sec, usec, (unsigned long) pthread_self(), format);
 
     if (len < 0 || len > LOG_FORMAT_LEN)
         return;
