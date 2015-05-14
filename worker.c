@@ -141,6 +141,8 @@ void handle_time_check(worker_t pworker)
         connect_redis(pconredis);
     else
         reids_heartbeat(pconredis);
+
+    //增加对list结构中的元素的遍历，keycount是不是存在没有删除的情况??
 }
 
 
@@ -308,6 +310,7 @@ static int get_client_msg(char *clientdata, message_t msg)
 
 void channel_handle_client_read(connector_t pconn, int event)
 {
+    //由于和客户端只有一次交互，不用一直读取
     if (connector_read(pconn, event) > 0)
     {
         char *val = buffer_get_read(pconn->preadbuf);
@@ -376,38 +379,49 @@ static void get_response_str(char *data, char *uid, char *gdid)
 
 void channel_handle_redis_read(connector_t pconn, int event)
 {
+    //修复一个问题，Redis返回的数据已经读取到了缓冲区，不能只读取一个业务包
     if (connector_read(pconn, event) > 0)
     {
-        char *origin = buffer_get_read(pconn->preadbuf);
-        char analyse[100] = {0};
-        int originlen = get_analyse_data(origin, analyse);
-        buffer_read(pconn->preadbuf, originlen, TRUE);
-
-        if (strcmp(analyse, REDIS_HBVAL) == 0)
-            return;
-
-        context_t pcontext = (context_t)pconn->pworker->plist->head->value;
-        //print_log(LOG_TYPE_DEBUG, "Redis Read %s List Head Uid %s", analyse, pcontext->data);
-
-        char key[UID_MAX_LEN] = {0};
-        memcpy(key, pcontext->data, strlen(pcontext->data));
-        MEM_FREE(pcontext);
-        list_pop_head(pconn->pworker->plist);
-
-        size_t len1 = strlen(key);
-        size_t len2 = 0;
-        connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len1+1, &len2);
-
-        if (pclientcon)
+        while (buffer_readable(pconn->preadbuf) > 0)
         {
-            ht_remove(pconn->pworker->pht, key, len1+1);
+            char *origin = buffer_get_read(pconn->preadbuf);
+            char analyse[100] = {0};
+            int originlen = get_analyse_data(origin, analyse);
 
-            char val[100] = {0};
-            get_response_str(val, key, analyse);
-            size_t size = strlen(val);
+            if (originlen == 0)
+            {
+                print_log(LOG_TYPE_DEBUG, "buffer no value");
+                break;
+            }
 
-            buffer_write(pclientcon->pwritebuf, val, size);
-            connector_write(pclientcon);
+            buffer_read(pconn->preadbuf, originlen, TRUE);
+
+            if (strcmp(analyse, REDIS_HBVAL) == 0)
+                return;
+
+            context_t pcontext = (context_t)pconn->pworker->plist->head->value;
+            //print_log(LOG_TYPE_DEBUG, "Redis Read %s List Head Uid %s", analyse, pcontext->data);
+
+            char key[UID_MAX_LEN] = {0};
+            memcpy(key, pcontext->data, strlen(pcontext->data));
+            MEM_FREE(pcontext);
+            list_pop_head(pconn->pworker->plist);
+
+            size_t len1 = strlen(key);
+            size_t len2 = 0;
+            connector_t pclientcon = (connector_t)ht_get(pconn->pworker->pht, key, len1+1, &len2);
+
+            if (pclientcon)
+            {
+                ht_remove(pconn->pworker->pht, key, len1+1);
+
+                char val[100] = {0};
+                get_response_str(val, key, analyse);
+                size_t size = strlen(val);
+
+                buffer_write(pclientcon->pwritebuf, val, size);
+                connector_write(pclientcon);
+            }
         }
     }
 }
