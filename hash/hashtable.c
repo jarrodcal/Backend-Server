@@ -445,7 +445,7 @@ void ht_set_seed(uint32_t seed){
 //---------------------------------
 // hash_entry functions
 //---------------------------------
-
+//TODO 检查是否有内存碎片，是否可以进行Premalloc
 hash_entry *he_create(int flags, void *key, size_t key_size, void *value,
         size_t value_size)
 {
